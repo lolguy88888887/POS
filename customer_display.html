@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Display</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #0f172a; color: #ffffff; display: flex; height: 100vh; overflow: hidden; }
+        .container { display: flex; width: 100%; height: 100%; }
+
+        .cart-section { flex: 1.2; background-color: #1e293b; padding: 30px; display: flex; flex-direction: column; border-right: 1px solid #334155; }
+        .section-title { font-size: 1.3rem; color: #94a3b8; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+
+        .cart-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; background-color: #0f172a; padding: 18px 20px; border-radius: 12px; border: 1px solid #334155; font-size: 1.1rem; }
+        .item-details { display: flex; flex-direction: column; gap: 4px; }
+        .item-name { font-weight: 600; color: #f8fafc; }
+        .item-qty { font-size: 0.85rem; color: #94a3b8; }
+        .item-price { font-weight: 700; font-size: 1.2rem; color: #38bdf8; }
+
+        .summary-section { flex: 0.9; padding: 30px; display: flex; flex-direction: column; justify-content: space-between; background-color: #0f172a; align-items: center; text-align: center; }
+        .summary-card { background-color: #1e293b; padding: 20px; border-radius: 16px; border: 1px solid #334155; width: 100%; margin-bottom: 15px; }
+        .summary-label { font-size: 1rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; font-weight: 600; }
+        .summary-total { font-size: 3rem; font-weight: 800; color: #38bdf8; }
+
+        .qr-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .qr-card p { font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px; font-weight: 600; text-transform: uppercase; }
+        .qr-wrapper { background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+
+        .status-banner { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 15px; width: 100%; text-align: center; font-size: 1rem; color: #94a3b8; font-weight: 600; transition: all 0.3s ease; }
+        .status-banner.success { background-color: #064e3b; color: #6ee7b7; border-color: #047857; font-size: 1.1rem; }
+        .empty-state { text-align: center; color: #64748b; margin-top: 100px; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="cart-section">
+            <div class="section-title">🛒 Current Order</div>
+            <div class="cart-items" id="cart-items">
+                <div class="empty-state">Welcome! Items scanned at register will appear here.</div>
+            </div>
+        </div>
+
+        <div class="summary-section">
+            <div class="summary-card">
+                <div class="summary-label">Total Amount Due</div>
+                <div class="summary-total" id="cart-total">$0.00</div>
+            </div>
+
+            <div class="qr-card">
+                <p id="qr-instruction">📷 Scan with Wallet App Camera to Pay</p>
+                <div class="qr-wrapper">
+                    <div id="display-qr-code"></div>
+                </div>
+            </div>
+
+            <div class="status-banner" id="status-banner">
+                Waiting for register checkout...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const channel = new BroadcastChannel('pos_system_channel');
+        let qrInstance = null;
+
+        channel.onmessage = (event) => {
+            const data = event.data;
+
+            if (data.type === 'SHOW_INVOICE_QR') {
+                document.getElementById('cart-total').textContent = `$${data.amount.toFixed(2)}`;
+                renderQRPayload(data.invoiceId, data.amount);
+                document.getElementById('status-banner').textContent = '⌛ Waiting for mobile wallet scan...';
+                document.getElementById('status-banner').className = 'status-banner';
+            } 
+            else if (data.type === 'UPDATE_CART') {
+                renderCart(data.cart, data.total);
+            } 
+            else if (data.type === 'PAYMENT_STATUS') {
+                const statusBanner = document.getElementById('status-banner');
+                if (data.status === 'SUCCESS') {
+                    statusBanner.className = 'status-banner success';
+                    statusBanner.textContent = data.message || '✅ Payment Accepted!';
+                }
+            }
+        };
+
+        function renderCart(cartItems, total) {
+            const cartContainer = document.getElementById('cart-items');
+            const totalDisplay = document.getElementById('cart-total');
+
+            totalDisplay.textContent = `$${parseFloat(total).toFixed(2)}`;
+
+            if (!cartItems || cartItems.length === 0) {
+                cartContainer.innerHTML = '<div class="empty-state">Welcome! Items scanned at register will appear here.</div>';
+                document.getElementById('status-banner').className = 'status-banner';
+                document.getElementById('status-banner').textContent = 'Waiting for register checkout...';
+                clearQR();
+                return;
+            }
+
+            cartContainer.innerHTML = '';
+            cartItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'cart-item';
+                itemDiv.innerHTML = `
+                    <div class="item-details">
+                        <span class="item-name">${item.icon} ${item.name}</span>
+                        <span class="item-qty">Qty: ${item.quantity} × $${parseFloat(item.price).toFixed(2)}</span>
+                    </div>
+                    <div class="item-price">$${(item.quantity * item.price).toFixed(2)}</div>
+                `;
+                cartContainer.appendChild(itemDiv);
+            });
+        }
+
+        function renderQRPayload(invoiceId, amount) {
+            const qrBox = document.getElementById('display-qr-code');
+            const payload = JSON.stringify({
+                type: "POS_INVOICE",
+                invoiceId: invoiceId,
+                amount: amount
+            });
+
+            if (qrInstance) {
+                qrInstance.clear();
+                qrInstance.makeCode(payload);
+            } else {
+                qrBox.innerHTML = '';
+                qrInstance = new QRCode(qrBox, {
+                    text: payload,
+                    width: 170,
+                    height: 170,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            }
+        }
+
+        function clearQR() {
+            const qrBox = document.getElementById('display-qr-code');
+            qrBox.innerHTML = '';
+            qrInstance = null;
+        }
+    </script>
+</body>
+</html>

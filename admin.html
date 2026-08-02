@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS System - Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark-bg: #0f172a;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --input-bg: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--dark-bg); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        nav { background-color: #020617; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); }
+        .nav-brand { font-size: 1.4rem; font-weight: bold; }
+        
+        .main-content { flex: 1; padding: 25px; max-width: 1200px; width: 100%; margin: 0 auto; }
+        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); margin-bottom: 25px; }
+
+        h2 { margin-bottom: 20px; padding-bottom: 8px; border-bottom: 2px solid var(--card-border); color: var(--text-main); }
+
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted); }
+        input { width: 100%; padding: 10px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-main); border-radius: 6px; font-size: 1rem; outline: none; }
+
+        .btn { padding: 8px 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; display: inline-block; transition: background-color 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: #000; }
+        .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
+
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .admin-table th, .admin-table td { padding: 14px; text-align: left; border-bottom: 1px solid var(--card-border); vertical-align: middle; }
+        .admin-table th { color: var(--text-muted); background: #0f172a; }
+
+        .barcode-container { background: white; padding: 6px 10px; border-radius: 6px; display: inline-block; }
+        .passcode-badge { background: #0f172a; border: 1px solid var(--card-border); padding: 4px 10px; border-radius: 6px; font-family: monospace; color: #38bdf8; font-weight: bold; }
+
+        #toast { position: fixed; bottom: 25px; right: 25px; padding: 15px 25px; background: #334155; color: white; border-radius: 8px; display: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); z-index: 99999; font-weight: 500; border: 1px solid #475569; }
+
+        @media print {
+            nav, .no-print { display: none !important; }
+            body { background: white; color: black; }
+            .card { border: none; box-shadow: none; padding: 0; }
+            .admin-table th { background: #eee; color: black; }
+            .admin-table td { border-bottom: 1px solid #ccc; color: black; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-brand">⚙️ System Admin Dashboard</div>
+        <button class="btn btn-primary btn-sm no-print" onclick="window.print()">🖨️ Print Barcodes</button>
+    </nav>
+
+    <div class="main-content">
+        
+        <!-- Create Profile Section -->
+        <div class="card no-print">
+            <h2>Add Customer Profile</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Customer Name</label>
+                    <input type="text" id="admin-user-name" placeholder="e.g. Sarah Connor">
+                </div>
+                <div class="form-group">
+                    <label>Initial Balance ($)</label>
+                    <input type="number" id="admin-user-balance" value="50.00" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Assign Wallet Passcode/PIN</label>
+                    <input type="text" id="admin-user-passcode" value="1234" maxlength="6" placeholder="e.g. 1234">
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="createCustomerProfile()">Create Profile & Barcode</button>
+        </div>
+
+        <!-- Customer Profiles & Security Management Directory -->
+        <div class="card">
+            <h2>Customer Directory & Passcode Controls</h2>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Account ID</th>
+                        <th>Name</th>
+                        <th>Balance</th>
+                        <th>Passcode</th>
+                        <th>Account Barcode (Code128)</th>
+                        <th class="no-print">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-customer-rows"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div id="toast">Notification Message</div>
+
+    <script>
+        const defaultAccounts = [
+            { id: "10011", name: "Staff Member (Alex)", balance: 40.00, passcode: "1234" },
+            { id: "20022", name: "VIP Regular (Sarah)", balance: 200.00, passcode: "1234" }
+        ];
+
+        let accounts = [];
+
+        function commitToDisk() {
+            localStorage.setItem('pos_accounts', JSON.stringify(accounts));
+        }
+
+        function loadAccounts() {
+            accounts = JSON.parse(localStorage.getItem('pos_accounts')) || defaultAccounts;
+            // Ensure backwards compatibility if missing passcodes
+            accounts.forEach(acc => {
+                if (!acc.passcode) acc.passcode = "1234";
+            });
+            commitToDisk();
+        }
+
+        function renderAdminTable() {
+            loadAccounts();
+            const tbody = document.getElementById('admin-customer-rows');
+            tbody.innerHTML = '';
+
+            if (accounts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No profiles found.</td></tr>`;
+                return;
+            }
+
+            accounts.forEach(acc => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong style="font-family:monospace; color:var(--primary); font-size:1.1rem;">#${acc.id}</strong></td>
+                    <td><strong>${acc.name}</strong></td>
+                    <td><span style="color:#34d399; font-weight:bold;">$${acc.balance.toFixed(2)}</span></td>
+                    <td><span class="passcode-badge">🔑 ${acc.passcode}</span></td>
+                    <td>
+                        <div class="barcode-container">
+                            <svg id="admin-barcode-${acc.id}"></svg>
+                        </div>
+                    </td>
+                    <td class="no-print">
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn btn-warning btn-sm" onclick="changeUserPasscode('${acc.id}')">🔑 Passcode</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteCustomer('${acc.id}')">Delete</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Generate Code128 Barcode
+                try {
+                    JsBarcode(`#admin-barcode-${acc.id}`, acc.id, {
+                        format: "CODE128",
+                        width: 1.4,
+                        height: 38,
+                        displayValue: true
+                    });
+                } catch(err) {
+                    console.error(`Barcode rendering failed for ID ${acc.id}`, err);
+                }
+            });
+        }
+
+        function createCustomerProfile() {
+            const name = document.getElementById('admin-user-name').value.trim();
+            const balance = parseFloat(document.getElementById('admin-user-balance').value);
+            const passcode = document.getElementById('admin-user-passcode').value.trim() || "1234";
+
+            if (!name || isNaN(balance)) {
+                fireToast("❌ Please fill out all required fields.");
+                return;
+            }
+
+            const newId = String(Math.floor(100000 + Math.random() * 899999));
+            accounts.push({ id: newId, name: name, balance: balance, passcode: passcode });
+            
+            commitToDisk();
+            renderAdminTable();
+
+            document.getElementById('admin-user-name').value = '';
+            document.getElementById('admin-user-passcode').value = '1234';
+            fireToast(`✅ Created profile for ${name} (ID: #${newId})`);
+        }
+
+        /* ADMIN CHANGE PASSCODE LOGIC */
+        function changeUserPasscode(accountId) {
+            const user = accounts.find(a => a.id === accountId);
+            if (!user) return;
+
+            const newPasscode = prompt(`Enter new Passcode for ${user.name} (Current: ${user.passcode}):`);
+            
+            if (newPasscode !== null && newPasscode.trim() !== "") {
+                user.passcode = newPasscode.trim();
+                commitToDisk();
+                renderAdminTable();
+                fireToast(`🔑 Updated passcode for ${user.name}`);
+            }
+        }
+
+        function deleteCustomer(id) {
+            if (confirm(`Are you sure you want to delete profile #${id}?`)) {
+                accounts = accounts.filter(a => a.id !== id);
+                commitToDisk();
+                renderAdminTable();
+                fireToast("Profile deleted.");
+            }
+        }
+
+        function fireToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        window.onload = function() {
+            renderAdminTable();
+        };
+    </script>
+</body>
+</html>
