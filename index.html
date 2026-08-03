@@ -7,7 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     
-    <!-- Firebase SDKs (v9 Compat) -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -147,7 +147,6 @@
             </div>
         </div>
 
-        <!-- Checkout Invoice Modal -->
         <div class="modal-backdrop" id="checkout-modal">
             <div class="modal-content">
                 <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px;">✕ Cancel</button>
@@ -268,19 +267,18 @@
     <div id="toast">Notification Message</div>
 
     <script>
-       const firebaseConfig = {
-    apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-    authDomain: "pos21-8f88f.firebaseapp.com",
-    // Replace the line below with your EXACT URL from the Firebase Console:
-    databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com/.firebasedatabase.app", 
-    projectId: "pos21-8f88f",
-    storageBucket: "pos21-8f88f.firebasestorage.app",
-    messagingSenderId: "49870857272",
-    appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+        const firebaseConfig = {
+            apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+            authDomain: "pos21-8f88f.firebaseapp.com",
+            databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+            projectId: "pos21-8f88f",
+            storageBucket: "pos21-8f88f.firebasestorage.app",
+            messagingSenderId: "49870857272",
+            appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
         const displayChannel = new BroadcastChannel('pos_system_channel');
 
@@ -308,8 +306,7 @@ const db = firebase.database();
             if(btnElement) btnElement.classList.add('active');
         }
 
-        // --- REALTIME FIREBASE LISTENERS ---
-        // Load and sync products matrix dynamically
+        // Live Product Sync from Firebase
         db.ref('products').on('value', (snapshot) => {
             const val = snapshot.val();
             products = [];
@@ -318,19 +315,91 @@ const db = firebase.database();
                     products.push({ id: key, ...val[key] });
                 });
             } else {
-                // Initialize default seeds if database is fresh
-                const seedProducts = {
+                // Initialize default catalog if empty
+                const defaultSeed = {
                     p1: { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
                     p2: { barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
                     p3: { barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
                 };
-                db.ref('products').set(seedProducts);
+                db.ref('products').set(defaultSeed);
             }
             renderProductGrid();
             buildInventoryManagementTables();
         });
 
-        // Universal USB Barcode Scanner & Hardware Key Listener
+        // Top-Up Account directly to Firebase
+        function submitWalletTopUp() {
+            const code = document.getElementById('topup-barcode-search').value.trim();
+            const amount = parseFloat(document.getElementById('topup-amount-input').value);
+
+            if (!code || isNaN(amount) || amount <= 0) { 
+                fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
+                return; 
+            }
+
+            const accountRef = db.ref('accounts/' + code);
+
+            accountRef.once('value').then((snapshot) => {
+                const data = snapshot.val();
+                let newBalance = amount;
+                let name = `Account (${code})`;
+
+                if (data) {
+                    newBalance = (parseFloat(data.balance) || 0) + amount;
+                    name = data.name || name;
+                }
+
+                return accountRef.set({
+                    id: code,
+                    name: name,
+                    balance: newBalance
+                }).then(() => {
+                    document.getElementById('topup-barcode-search').value = '';
+                    document.getElementById('topup-amount-input').value = '';
+                    fireToast(`✅ Deposited $${amount.toFixed(2)} to ${name}. New Balance: $${newBalance.toFixed(2)}`);
+                });
+            }).catch((err) => {
+                console.error(err);
+                fireToast("❌ Write failed: " + err.message);
+            });
+        }
+
+        // Charge Account via Numpad or Scan
+        function processDirectIdCharge() {
+            if (!typedAccountId) {
+                fireToast("❌ Please enter or scan an Account ID.");
+                return;
+            }
+
+            const accountRef = db.ref('accounts/' + typedAccountId);
+
+            accountRef.once('value').then((snapshot) => {
+                const customer = snapshot.val();
+
+                if (!customer) {
+                    fireToast(`❌ Account ID #${typedAccountId} not found.`);
+                    return;
+                }
+
+                const currentBal = parseFloat(customer.balance) || 0;
+
+                if (currentBal < totalDue) {
+                    fireToast(`❌ Insufficient funds! Current Balance: $${currentBal.toFixed(2)}`);
+                    return;
+                }
+
+                const newBalance = currentBal - totalDue;
+
+                accountRef.update({ balance: newBalance }).then(() => {
+                    completeCheckoutSuccess(customer.name || `User #${typedAccountId}`, totalDue);
+                });
+            }).catch((err) => {
+                console.error(err);
+                fireToast("❌ Charge Failed: " + err.message);
+            });
+        }
+
+        // USB Scanner Listener
         window.addEventListener("keydown", function(e) {
             const currentTime = Date.now();
             if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return; 
@@ -379,76 +448,6 @@ const db = firebase.database();
 
         function updateNumpadUI() {
             document.getElementById('numpad-input-val').innerText = typedAccountId || "------";
-        }
-
-        // Top-Up directly into Firebase Realtime Database
-        function submitWalletTopUp() {
-            const code = document.getElementById('topup-barcode-search').value.trim();
-            const amount = parseFloat(document.getElementById('topup-amount-input').value);
-
-            if (!code || isNaN(amount) || amount <= 0) { 
-                fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
-                return; 
-            }
-
-            const accountRef = db.ref('accounts/' + code);
-
-            accountRef.once('value').then((snapshot) => {
-                const data = snapshot.val();
-                let newBalance = amount;
-                let name = `Account (${code})`;
-
-                if (data) {
-                    newBalance = (data.balance || 0) + amount;
-                    name = data.name || name;
-                }
-
-                return accountRef.update({
-                    id: code,
-                    name: name,
-                    balance: newBalance
-                }).then(() => {
-                    document.getElementById('topup-barcode-search').value = '';
-                    document.getElementById('topup-amount-input').value = '';
-                    fireToast(`✅ Deposited $${amount.toFixed(2)} to ${name}. New Balance: $${newBalance.toFixed(2)}`);
-                });
-            }).catch((err) => {
-                console.error("Firebase write error:", err);
-                fireToast("❌ Firebase Error: " + err.message);
-            });
-        }
-
-        // Charge Customer Account Directly
-        function processDirectIdCharge() {
-            if (!typedAccountId) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
-
-            const accountRef = db.ref('accounts/' + typedAccountId);
-
-            accountRef.once('value').then((snapshot) => {
-                const customer = snapshot.val();
-
-                if (!customer) {
-                    fireToast(`❌ Account ID #${typedAccountId} not found.`);
-                    return;
-                }
-
-                if ((customer.balance || 0) < totalDue) {
-                    fireToast(`❌ Insufficient funds! Current Balance: $${(customer.balance || 0).toFixed(2)}`);
-                    return;
-                }
-
-                const newBalance = customer.balance - totalDue;
-
-                accountRef.update({ balance: newBalance }).then(() => {
-                    completeCheckoutSuccess(customer.name || `User #${typedAccountId}`, totalDue);
-                });
-            }).catch((err) => {
-                console.error(err);
-                fireToast("❌ Transaction Failed: " + err.message);
-            });
         }
 
         function completeCheckoutSuccess(customerName, amountPaid) {
@@ -622,7 +621,7 @@ const db = firebase.database();
             db.ref('products/' + prodId).set({ barcode, icon, name, price }).then(() => {
                 resetProductForm();
                 fireToast("✅ Product saved in database.");
-            }).catch(err => fireToast("❌ Error: " + err.message));
+            });
         }
 
         function startEditProduct(productId) {
