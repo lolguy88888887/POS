@@ -7,7 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     
-    <!-- Firebase Realtime Database SDKs -->
+    <!-- Firebase SDKs (v9 Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -68,7 +68,6 @@
         .cart-table th, .inventory-table th { color: var(--text-muted); }
         .summary-box { background: #0f172a; padding: 15px; border-radius: 8px; font-size: 1.3rem; font-weight: bold; display: flex; justify-content: space-between; margin: 20px 0; border: 1px solid var(--card-border); border-left: 5px solid var(--primary); }
 
-        /* Modal & Numpad Layout */
         .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; z-index: 10000; backdrop-filter: blur(4px); }
         .modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 25px; width: 100%; max-width: 650px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); position: relative; color: var(--text-main); }
         
@@ -148,7 +147,7 @@
             </div>
         </div>
 
-        <!-- Checkout Invoice Modal (Numpad + USB Scan + QR) -->
+        <!-- Checkout Invoice Modal -->
         <div class="modal-backdrop" id="checkout-modal">
             <div class="modal-content">
                 <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px;">✕ Cancel</button>
@@ -156,7 +155,6 @@
                 <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin-top: 4px;" id="modal-total-display">$0.00</div>
 
                 <div class="checkout-grid">
-                    <!-- Left Column: Keypad & USB Scanner Entry -->
                     <div class="numpad-container">
                         <label style="margin-bottom:2px;">Scan Card or Type ID:</label>
                         <div class="numpad-display" id="numpad-input-val">------</div>
@@ -179,7 +177,6 @@
                         <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 12px; margin-top: 4px;">Charge Account</button>
                     </div>
 
-                    <!-- Right Column: Wallet Camera QR -->
                     <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid var(--card-border); padding-left: 15px;">
                         <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">OR Customer Scans QR with Phone</p>
                         <div class="qr-display-box">
@@ -271,38 +268,22 @@
     <div id="toast">Notification Message</div>
 
     <script>
-        // Initialize Firebase with your project details
-       const firebaseConfig = {
-  apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-  authDomain: "pos21-8f88f.firebaseapp.com",
-  databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-  projectId: "pos21-8f88f",
-  storageBucket: "pos21-8f88f.firebasestorage.app",
-  messagingSenderId: "49870857272",
-  appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-};
-
-
+        const firebaseConfig = {
+            apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+            authDomain: "pos21-8f88f.firebaseapp.com",
+            databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+            projectId: "pos21-8f88f",
+            storageBucket: "pos21-8f88f.firebasestorage.app",
+            messagingSenderId: "49870857272",
+            appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+        };
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
         const displayChannel = new BroadcastChannel('pos_system_channel');
 
-        let defaultAccounts = [
-            { id: "10011", name: "Staff Member (Alex)", balance: 40.00 },
-            { id: "20022", name: "VIP Regular (Sarah)", balance: 200.00 }
-        ];
-
-        let defaultProducts = [
-            { id: "p1", barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
-            { id: "p2", barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
-            { id: "p3", barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
-        ];
-
-        let accounts = JSON.parse(localStorage.getItem('pos_accounts')) || defaultAccounts;
-        let products = JSON.parse(localStorage.getItem('pos_products')) || defaultProducts;
-
+        let products = [];
         let cart = [];
         let totalDue = 0.00;
         let activeInvoiceId = null;
@@ -311,18 +292,12 @@
 
         let barcodeBuffer = "";
         let lastKeyTime = Date.now();
-        let activePaymentUnsubscribe = null;
-
-        function commitDatabaseToDisk() {
-            localStorage.setItem('pos_accounts', JSON.stringify(accounts));
-            localStorage.setItem('pos_products', JSON.stringify(products));
-        }
 
         function fireToast(msg) {
             const toast = document.getElementById('toast');
             toast.innerText = msg;
             toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+            setTimeout(() => { toast.style.display = 'none'; }, 3500);
         }
 
         function switchView(viewId, btnElement) {
@@ -332,14 +307,27 @@
             if(btnElement) btnElement.classList.add('active');
         }
 
-        displayChannel.onmessage = (event) => {
-            const data = event.data;
-            if (data.type === 'WALLET_PAYMENT_SUCCESS') {
-                if (data.invoiceId === activeInvoiceId) {
-                    completeCheckoutSuccess(data.customerName, data.amount);
-                }
+        // --- REALTIME FIREBASE LISTENERS ---
+        // Load and sync products matrix dynamically
+        db.ref('products').on('value', (snapshot) => {
+            const val = snapshot.val();
+            products = [];
+            if (val) {
+                Object.keys(val).forEach(key => {
+                    products.push({ id: key, ...val[key] });
+                });
+            } else {
+                // Initialize default seeds if database is fresh
+                const seedProducts = {
+                    p1: { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
+                    p2: { barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
+                    p3: { barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
+                };
+                db.ref('products').set(seedProducts);
             }
-        };
+            renderProductGrid();
+            buildInventoryManagementTables();
+        });
 
         // Universal USB Barcode Scanner & Hardware Key Listener
         window.addEventListener("keydown", function(e) {
@@ -392,28 +380,74 @@
             document.getElementById('numpad-input-val').innerText = typedAccountId || "------";
         }
 
+        // Top-Up directly into Firebase Realtime Database
+        function submitWalletTopUp() {
+            const code = document.getElementById('topup-barcode-search').value.trim();
+            const amount = parseFloat(document.getElementById('topup-amount-input').value);
+
+            if (!code || isNaN(amount) || amount <= 0) { 
+                fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
+                return; 
+            }
+
+            const accountRef = db.ref('accounts/' + code);
+
+            accountRef.once('value').then((snapshot) => {
+                const data = snapshot.val();
+                let newBalance = amount;
+                let name = `Account (${code})`;
+
+                if (data) {
+                    newBalance = (data.balance || 0) + amount;
+                    name = data.name || name;
+                }
+
+                return accountRef.update({
+                    id: code,
+                    name: name,
+                    balance: newBalance
+                }).then(() => {
+                    document.getElementById('topup-barcode-search').value = '';
+                    document.getElementById('topup-amount-input').value = '';
+                    fireToast(`✅ Deposited $${amount.toFixed(2)} to ${name}. New Balance: $${newBalance.toFixed(2)}`);
+                });
+            }).catch((err) => {
+                console.error("Firebase write error:", err);
+                fireToast("❌ Firebase Error: " + err.message);
+            });
+        }
+
+        // Charge Customer Account Directly
         function processDirectIdCharge() {
             if (!typedAccountId) {
                 fireToast("❌ Please enter or scan an Account ID.");
                 return;
             }
 
-            accounts = JSON.parse(localStorage.getItem('pos_accounts')) || defaultAccounts;
-            const customer = accounts.find(a => a.id === typedAccountId);
+            const accountRef = db.ref('accounts/' + typedAccountId);
 
-            if (!customer) {
-                fireToast(`❌ Account ID #${typedAccountId} not found.`);
-                return;
-            }
+            accountRef.once('value').then((snapshot) => {
+                const customer = snapshot.val();
 
-            if (customer.balance < totalDue) {
-                fireToast(`❌ Insufficient funds! Balance: $${customer.balance.toFixed(2)}`);
-                return;
-            }
+                if (!customer) {
+                    fireToast(`❌ Account ID #${typedAccountId} not found.`);
+                    return;
+                }
 
-            customer.balance -= totalDue;
-            commitDatabaseToDisk();
-            completeCheckoutSuccess(customer.name, totalDue);
+                if ((customer.balance || 0) < totalDue) {
+                    fireToast(`❌ Insufficient funds! Current Balance: $${(customer.balance || 0).toFixed(2)}`);
+                    return;
+                }
+
+                const newBalance = customer.balance - totalDue;
+
+                accountRef.update({ balance: newBalance }).then(() => {
+                    completeCheckoutSuccess(customer.name || `User #${typedAccountId}`, totalDue);
+                });
+            }).catch((err) => {
+                console.error(err);
+                fireToast("❌ Transaction Failed: " + err.message);
+            });
         }
 
         function completeCheckoutSuccess(customerName, amountPaid) {
@@ -464,7 +498,6 @@
                 });
             }
 
-            // Real-time listener for incoming Firebase payment events
             const paymentsRef = db.ref("transactions").child(activeInvoiceId);
             paymentsRef.on("value", (snapshot) => {
                 const tx = snapshot.val();
@@ -542,7 +575,7 @@
                 itemDiv.innerHTML = `
                     <div style="font-size:1.8rem; margin-bottom:5px;">${p.icon}</div>
                     <div style="font-weight:600; font-size:0.85rem;">${p.name}</div>
-                    <div style="color:var(--primary); font-weight:700; margin-top:2px;">$${p.price.toFixed(2)}</div>
+                    <div style="color:var(--primary); font-weight:700; margin-top:2px;">$${Number(p.price).toFixed(2)}</div>
                     <div><span class="barcode-tag"># ${p.barcode}</span></div>
                 `;
                 grid.appendChild(itemDiv);
@@ -557,7 +590,7 @@
                 tr.innerHTML = `
                     <td><span style="font-size:1.3rem;">${p.icon}</span></td>
                     <td><strong>${p.name}</strong></td>
-                    <td>$${p.price.toFixed(2)}</td>
+                    <td>$${Number(p.price).toFixed(2)}</td>
                     <td><svg id="barcode-prod-${p.id}" style="background:#fff; padding:4px; border-radius:4px;"></svg></td>
                     <td>
                         <button class="btn btn-warning btn-sm" onclick="startEditProduct('${p.id}')">Edit</button>
@@ -583,20 +616,12 @@
 
             if (!name || isNaN(price) || !barcode) { fireToast("❌ All inputs required."); return; }
 
-            if (targetId) {
-                let match = products.find(p => p.id === targetId);
-                if (match) {
-                    match.name = name; match.icon = icon; match.price = price; match.barcode = barcode;
-                }
-            } else {
-                products.push({ id: 'p_' + Date.now(), barcode, icon, name, price });
-            }
-
-            commitDatabaseToDisk();
-            resetProductForm();
-            renderProductGrid();
-            buildInventoryManagementTables();
-            fireToast("✅ Product saved successfully.");
+            const prodId = targetId ? targetId : 'p_' + Date.now();
+            
+            db.ref('products/' + prodId).set({ barcode, icon, name, price }).then(() => {
+                resetProductForm();
+                fireToast("✅ Product saved in database.");
+            }).catch(err => fireToast("❌ Error: " + err.message));
         }
 
         function startEditProduct(productId) {
@@ -625,11 +650,9 @@
 
         function deleteProduct(productId) {
             if(confirm("Are you sure?")) {
-                products = products.filter(p => p.id !== productId);
-                commitDatabaseToDisk();
-                renderProductGrid();
-                buildInventoryManagementTables();
-                fireToast("🗑️ Product deleted.");
+                db.ref('products/' + productId).remove().then(() => {
+                    fireToast("🗑️ Product deleted.");
+                });
             }
         }
 
@@ -639,62 +662,17 @@
             if(!nameInput || isNaN(initialBal)) { fireToast("❌ Please fix input fields."); return; }
             
             const autoGeneratedUserId = String(Math.floor(100000 + Math.random() * 899999));
-            accounts.push({ id: autoGeneratedUserId, name: nameInput, balance: initialBal });
-            commitDatabaseToDisk();
-            document.getElementById('new-user-name').value = '';
-            fireToast(`Profile created for ${nameInput} (ID: ${autoGeneratedUserId})`);
-            switchView('register-view', document.querySelectorAll('.nav-btn')[0]);
-        }
-
-        function submitWalletTopUp() {
-    const code = document.getElementById('topup-barcode-search').value.trim();
-    const amount = parseFloat(document.getElementById('topup-amount-input').value);
-
-    if (!code || isNaN(amount) || amount <= 0) { 
-        fireToast("❌ Invalid entry parameters."); 
-        return; 
-    }
-
-    // Direct reference to the specific account in Firebase
-    const accountRef = db.ref('accounts/' + code);
-
-    accountRef.once('value').then((snapshot) => {
-        let currentData = snapshot.val() || {};
-        let currentBalance = currentData.balance !== undefined ? currentData.balance : 40.00; // Default base balance
-        let accountName = currentData.name || `Customer (${code})`;
-
-        const newBalance = currentBalance + amount;
-
-        // Write directly to Firebase
-        return accountRef.update({
-            id: code,
-            name: accountName,
-            balance: newBalance
-        }).then(() => {
-            // Synchronize local array & storage
-            accounts = JSON.parse(localStorage.getItem('pos_accounts')) || defaultAccounts;
-            let match = accounts.find(a => a.id === code);
             
-            if (match) {
-                match.balance = newBalance;
-            } else {
-                accounts.push({ id: code, name: accountName, balance: newBalance });
-            }
-            commitDatabaseToDisk();
-
-            document.getElementById('topup-barcode-search').value = '';
-            document.getElementById('topup-amount-input').value = '';
-            fireToast(`✅ Added $${amount.toFixed(2)} to ID ${code}. New Balance: $${newBalance.toFixed(2)}`);
-        });
-    }).catch((error) => {
-        console.error("Firebase error:", error);
-        fireToast("❌ Firebase write failed: " + error.message);
-    });
-}
-
-        // Initial Load
-        renderProductGrid();
-        buildInventoryManagementTables();
+            db.ref('accounts/' + autoGeneratedUserId).set({
+                id: autoGeneratedUserId,
+                name: nameInput,
+                balance: initialBal
+            }).then(() => {
+                document.getElementById('new-user-name').value = '';
+                fireToast(`Profile created for ${nameInput} (ID: ${autoGeneratedUserId})`);
+                switchView('register-view', document.querySelectorAll('.nav-btn')[0]);
+            });
+        }
     </script>
 </body>
 </html>
