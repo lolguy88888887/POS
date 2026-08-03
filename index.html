@@ -6,6 +6,11 @@
     <title>Configurable POS - Staff Panel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    
+    <!-- Firebase Realtime Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <style>
         :root {
             --primary: #3b82f6;
@@ -48,6 +53,7 @@
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
         .btn-block { width: 100%; display: block; }
         .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
         .btn-lg { padding: 18px 24px; font-size: 1.3rem; }
@@ -265,6 +271,22 @@
     <div id="toast">Notification Message</div>
 
     <script>
+        // Initialize Firebase with your project details
+       const firebaseConfig = {
+  apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+  authDomain: "pos21-8f88f.firebaseapp.com",
+  databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+  projectId: "pos21-8f88f",
+  storageBucket: "pos21-8f88f.firebasestorage.app",
+  messagingSenderId: "49870857272",
+  appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+};
+
+
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
         const displayChannel = new BroadcastChannel('pos_system_channel');
 
         let defaultAccounts = [
@@ -289,10 +311,25 @@
 
         let barcodeBuffer = "";
         let lastKeyTime = Date.now();
+        let activePaymentUnsubscribe = null;
 
         function commitDatabaseToDisk() {
             localStorage.setItem('pos_accounts', JSON.stringify(accounts));
             localStorage.setItem('pos_products', JSON.stringify(products));
+        }
+
+        function fireToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        function switchView(viewId, btnElement) {
+            document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active-view'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active-view');
+            if(btnElement) btnElement.classList.add('active');
         }
 
         displayChannel.onmessage = (event) => {
@@ -320,12 +357,10 @@
                     barcodeBuffer = "";
 
                     if (isModalOpen) {
-                        // Scan barcode in checkout modal -> Charge Account ID
                         typedAccountId = scannedCode;
                         updateNumpadUI();
                         processDirectIdCharge();
                     } else {
-                        // Scan barcode on main page -> Add Item to Cart
                         const matchedProduct = products.find(p => p.barcode === scannedCode);
                         if (matchedProduct) addItemToCart(matchedProduct);
                     }
@@ -336,11 +371,7 @@
 
             if (/[0-9]/.test(e.key)) {
                 barcodeBuffer += e.key;
-                
-                // If Modal is open, also route physical keyboard keypresses directly into Numpad display
-                if (isModalOpen) {
-                    pressNumpad(e.key);
-                }
+                if (isModalOpen) pressNumpad(e.key);
             } else if (isModalOpen && (e.key === "Backspace" || e.key === "Delete")) {
                 pressNumpad('DEL');
             }
@@ -380,10 +411,8 @@
                 return;
             }
 
-            // Deduct customer balance
             customer.balance -= totalDue;
             commitDatabaseToDisk();
-
             completeCheckoutSuccess(customer.name, totalDue);
         }
 
@@ -400,63 +429,50 @@
             closeCheckoutModal();
         }
 
-        let activePaymentUnsubscribe = null;
-
-function openCheckoutModal() {
-    if (cart.length === 0) {
-        fireToast("❌ Cart is empty.");
-        return;
-    }
-
-    typedAccountId = "";
-    updateNumpadUI();
-
-    activeInvoiceId = "INV_" + Date.now();
-    document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
-    document.getElementById('checkout-modal').style.display = 'flex';
-
-    const invoicePayload = JSON.stringify({
-        type: "POS_INVOICE",
-        invoiceId: activeInvoiceId,
-        amount: totalDue
-    });
-
-    const qrBox = document.getElementById('pos-checkout-qr');
-    if (modalQrInstance) {
-        modalQrInstance.clear();
-        modalQrInstance.makeCode(invoicePayload);
-    } else {
-        qrBox.innerHTML = '';
-        modalQrInstance = new QRCode(qrBox, {
-            text: invoicePayload,
-            width: 150,
-            height: 150,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
-    }
-
-    // --- ADD THIS: Listen for incoming Firebase transaction ---
-    if (activePaymentUnsubscribe) activePaymentUnsubscribe();
-
-    const q = window.FB.query(
-        window.FB.collection(window.FB.db, "transactions"),
-        window.FB.where("recipientId", "==", "POS_TERMINAL")
-    );
-
-    activePaymentUnsubscribe = window.FB.onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const tx = change.doc.data();
-                // Match invoice ID or amount
-                if (tx.invoiceId === activeInvoiceId || (tx.amount === totalDue && Math.abs(tx.timestamp?.seconds - Date.now()/1000) < 60)) {
-                    completeCheckoutSuccess(tx.senderName || tx.senderId, totalDue);
-                }
+        function openCheckoutModal() {
+            if (cart.length === 0) {
+                fireToast("❌ Cart is empty.");
+                return;
             }
-        });
-    });
-}
+
+            typedAccountId = "";
+            updateNumpadUI();
+
+            activeInvoiceId = "INV_" + Date.now();
+            document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
+            document.getElementById('checkout-modal').style.display = 'flex';
+
+            const invoicePayload = JSON.stringify({
+                type: "POS_INVOICE",
+                invoiceId: activeInvoiceId,
+                amount: totalDue
+            });
+
+            const qrBox = document.getElementById('pos-checkout-qr');
+            if (modalQrInstance) {
+                modalQrInstance.clear();
+                modalQrInstance.makeCode(invoicePayload);
+            } else {
+                qrBox.innerHTML = '';
+                modalQrInstance = new QRCode(qrBox, {
+                    text: invoicePayload,
+                    width: 150,
+                    height: 150,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            }
+
+            // Real-time listener for incoming Firebase payment events
+            const paymentsRef = db.ref("transactions").child(activeInvoiceId);
+            paymentsRef.on("value", (snapshot) => {
+                const tx = snapshot.val();
+                if (tx && tx.status === "COMPLETED") {
+                    completeCheckoutSuccess(tx.senderName || "Customer", totalDue);
+                    paymentsRef.off(); 
+                }
+            });
 
             displayChannel.postMessage({
                 type: 'SHOW_INVOICE_QR',
@@ -468,6 +484,9 @@ function openCheckoutModal() {
 
         function closeCheckoutModal() {
             document.getElementById('checkout-modal').style.display = 'none';
+            if (activeInvoiceId) {
+                db.ref("transactions").child(activeInvoiceId).off();
+            }
             activeInvoiceId = null;
             typedAccountId = "";
             syncCustomerDisplay();
@@ -577,6 +596,7 @@ function openCheckoutModal() {
             resetProductForm();
             renderProductGrid();
             buildInventoryManagementTables();
+            fireToast("✅ Product saved successfully.");
         }
 
         function startEditProduct(productId) {
@@ -609,6 +629,7 @@ function openCheckoutModal() {
                 commitDatabaseToDisk();
                 renderProductGrid();
                 buildInventoryManagementTables();
+                fireToast("🗑️ Product deleted.");
             }
         }
 
@@ -631,96 +652,17 @@ function openCheckoutModal() {
             accounts = JSON.parse(localStorage.getItem('pos_accounts')) || accounts;
             const clientProfile = accounts.find(a => a.id === code);
             if(!clientProfile || isNaN(amount) || amount <= 0) { fireToast("❌ Invalid entry parameters."); return; }
+            
             clientProfile.balance += amount;
             commitDatabaseToDisk();
             document.getElementById('topup-barcode-search').value = '';
             document.getElementById('topup-amount-input').value = '';
-            fireToast(`💰 Deposited $${amount.toFixed(2)} to ${clientProfile.name}.`);
+            fireToast(`✅ Added $${amount.toFixed(2)} to ${clientProfile.name}. New Balance: $${clientProfile.balance.toFixed(2)}`);
         }
 
-        function switchView(targetViewId, clickedBtn) {
-            document.querySelectorAll('.page-view').forEach(view => view.classList.remove('active-view'));
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(targetViewId).classList.add('active-view');
-            if (clickedBtn) clickedBtn.classList.add('active');
-        }
-
-        function fireToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 3000);
-        }
-
-        // Initialize UI on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            renderProductGrid();
-            buildInventoryManagementTables();
-        });
-        function completeCheckoutSuccess(customerName, amountPaid) {
-    fireToast(`✅ Payment Successful! $${amountPaid.toFixed(2)} charged to ${customerName}`);
-    
-    // Broadcast payment confirmation AND receipt breakdown to wallet.html
-    displayChannel.postMessage({
-        type: 'PAYMENT_STATUS',
-        status: 'SUCCESS',
-        invoiceId: activeInvoiceId || ("INV_" + Date.now()),
-        customerName: customerName,
-        amount: amountPaid,
-        timestamp: new Date().toLocaleString(),
-        items: [...cart] // Full breakdown of items purchased
-    });
-
-    clearCart();
-    closeCheckoutModal();
-}
+        // Initial Load
+        renderProductGrid();
+        buildInventoryManagementTables();
     </script>
-    <!-- Include Firebase SDK (Modular Imports) -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { 
-        getFirestore, doc, updateDoc, increment, collection, addDoc, query, where, onSnapshot, serverTimestamp 
-    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-    // ⚠️ REPLACE THIS WITH YOUR FIREBASE CONFIG
-    const firebaseConfig = {
-  apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-  authDomain: "pos21-8f88f.firebaseapp.com",
-  databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-  projectId: "pos21-8f88f",
-  storageBucket: "pos21-8f88f.firebasestorage.app",
-  messagingSenderId: "49870857272",
-  appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-};
-
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // Make Firestore functions available globally to the POS script
-    window.FB = {
-        db, doc, updateDoc, increment, collection, addDoc, query, where, onSnapshot, serverTimestamp
-    };
-
-    // Auto-listen for incoming payments if an invoice is pending
-    window.listenForInvoicePayment = function(invoiceId, totalAmount, onSuccessCallback) {
-        const q = window.FB.query(
-            window.FB.collection(window.FB.db, "transactions"),
-            window.FB.where("recipientId", "==", "POS_TERMINAL")
-        );
-
-        return window.FB.onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    const tx = change.doc.data();
-                    // Match transaction amount or invoice reference
-                    if (tx.amount === totalAmount) {
-                        onSuccessCallback(tx);
-                    }
-                }
-            });
-        });
-    };
-</script>
 </body>
 </html>
