@@ -400,40 +400,63 @@
             closeCheckoutModal();
         }
 
-        function openCheckoutModal() {
-            if (cart.length === 0) {
-                fireToast("❌ Cart is empty.");
-                return;
+        let activePaymentUnsubscribe = null;
+
+function openCheckoutModal() {
+    if (cart.length === 0) {
+        fireToast("❌ Cart is empty.");
+        return;
+    }
+
+    typedAccountId = "";
+    updateNumpadUI();
+
+    activeInvoiceId = "INV_" + Date.now();
+    document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
+    document.getElementById('checkout-modal').style.display = 'flex';
+
+    const invoicePayload = JSON.stringify({
+        type: "POS_INVOICE",
+        invoiceId: activeInvoiceId,
+        amount: totalDue
+    });
+
+    const qrBox = document.getElementById('pos-checkout-qr');
+    if (modalQrInstance) {
+        modalQrInstance.clear();
+        modalQrInstance.makeCode(invoicePayload);
+    } else {
+        qrBox.innerHTML = '';
+        modalQrInstance = new QRCode(qrBox, {
+            text: invoicePayload,
+            width: 150,
+            height: 150,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+
+    // --- ADD THIS: Listen for incoming Firebase transaction ---
+    if (activePaymentUnsubscribe) activePaymentUnsubscribe();
+
+    const q = window.FB.query(
+        window.FB.collection(window.FB.db, "transactions"),
+        window.FB.where("recipientId", "==", "POS_TERMINAL")
+    );
+
+    activePaymentUnsubscribe = window.FB.onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const tx = change.doc.data();
+                // Match invoice ID or amount
+                if (tx.invoiceId === activeInvoiceId || (tx.amount === totalDue && Math.abs(tx.timestamp?.seconds - Date.now()/1000) < 60)) {
+                    completeCheckoutSuccess(tx.senderName || tx.senderId, totalDue);
+                }
             }
-
-            typedAccountId = "";
-            updateNumpadUI();
-
-            activeInvoiceId = "INV_" + Date.now();
-            document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
-            document.getElementById('checkout-modal').style.display = 'flex';
-
-            const invoicePayload = JSON.stringify({
-                type: "POS_INVOICE",
-                invoiceId: activeInvoiceId,
-                amount: totalDue
-            });
-
-            const qrBox = document.getElementById('pos-checkout-qr');
-            if (modalQrInstance) {
-                modalQrInstance.clear();
-                modalQrInstance.makeCode(invoicePayload);
-            } else {
-                qrBox.innerHTML = '';
-                modalQrInstance = new QRCode(qrBox, {
-                    text: invoicePayload,
-                    width: 150,
-                    height: 150,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-            }
+        });
+    });
+}
 
             displayChannel.postMessage({
                 type: 'SHOW_INVOICE_QR',
@@ -652,5 +675,52 @@
     closeCheckoutModal();
 }
     </script>
+    <!-- Include Firebase SDK (Modular Imports) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+        getFirestore, doc, updateDoc, increment, collection, addDoc, query, where, onSnapshot, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ⚠️ REPLACE THIS WITH YOUR FIREBASE CONFIG
+    const firebaseConfig = {
+  apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+  authDomain: "pos21-8f88f.firebaseapp.com",
+  databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+  projectId: "pos21-8f88f",
+  storageBucket: "pos21-8f88f.firebasestorage.app",
+  messagingSenderId: "49870857272",
+  appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+};
+
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Make Firestore functions available globally to the POS script
+    window.FB = {
+        db, doc, updateDoc, increment, collection, addDoc, query, where, onSnapshot, serverTimestamp
+    };
+
+    // Auto-listen for incoming payments if an invoice is pending
+    window.listenForInvoicePayment = function(invoiceId, totalAmount, onSuccessCallback) {
+        const q = window.FB.query(
+            window.FB.collection(window.FB.db, "transactions"),
+            window.FB.where("recipientId", "==", "POS_TERMINAL")
+        );
+
+        return window.FB.onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const tx = change.doc.data();
+                    // Match transaction amount or invoice reference
+                    if (tx.amount === totalAmount) {
+                        onSuccessCallback(tx);
+                    }
+                }
+            });
+        });
+    };
+</script>
 </body>
 </html>
