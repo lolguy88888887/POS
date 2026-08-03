@@ -647,18 +647,50 @@
         }
 
         function submitWalletTopUp() {
-            const code = document.getElementById('topup-barcode-search').value.trim();
-            const amount = parseFloat(document.getElementById('topup-amount-input').value);
-            accounts = JSON.parse(localStorage.getItem('pos_accounts')) || accounts;
-            const clientProfile = accounts.find(a => a.id === code);
-            if(!clientProfile || isNaN(amount) || amount <= 0) { fireToast("❌ Invalid entry parameters."); return; }
+    const code = document.getElementById('topup-barcode-search').value.trim();
+    const amount = parseFloat(document.getElementById('topup-amount-input').value);
+
+    if (!code || isNaN(amount) || amount <= 0) { 
+        fireToast("❌ Invalid entry parameters."); 
+        return; 
+    }
+
+    // Direct reference to the specific account in Firebase
+    const accountRef = db.ref('accounts/' + code);
+
+    accountRef.once('value').then((snapshot) => {
+        let currentData = snapshot.val() || {};
+        let currentBalance = currentData.balance !== undefined ? currentData.balance : 40.00; // Default base balance
+        let accountName = currentData.name || `Customer (${code})`;
+
+        const newBalance = currentBalance + amount;
+
+        // Write directly to Firebase
+        return accountRef.update({
+            id: code,
+            name: accountName,
+            balance: newBalance
+        }).then(() => {
+            // Synchronize local array & storage
+            accounts = JSON.parse(localStorage.getItem('pos_accounts')) || defaultAccounts;
+            let match = accounts.find(a => a.id === code);
             
-            clientProfile.balance += amount;
+            if (match) {
+                match.balance = newBalance;
+            } else {
+                accounts.push({ id: code, name: accountName, balance: newBalance });
+            }
             commitDatabaseToDisk();
+
             document.getElementById('topup-barcode-search').value = '';
             document.getElementById('topup-amount-input').value = '';
-            fireToast(`✅ Added $${amount.toFixed(2)} to ${clientProfile.name}. New Balance: $${clientProfile.balance.toFixed(2)}`);
-        }
+            fireToast(`✅ Added $${amount.toFixed(2)} to ID ${code}. New Balance: $${newBalance.toFixed(2)}`);
+        });
+    }).catch((error) => {
+        console.error("Firebase error:", error);
+        fireToast("❌ Firebase write failed: " + error.message);
+    });
+}
 
         // Initial Load
         renderProductGrid();
