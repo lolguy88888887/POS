@@ -268,18 +268,19 @@
     <div id="toast">Notification Message</div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-            authDomain: "pos21-8f88f.firebaseapp.com",
-            databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-            projectId: "pos21-8f88f",
-            storageBucket: "pos21-8f88f.firebasestorage.app",
-            messagingSenderId: "49870857272",
-            appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-        };
-        
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+       const firebaseConfig = {
+    apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+    authDomain: "pos21-8f88f.firebaseapp.com",
+    // Replace the line below with your EXACT URL from the Firebase Console:
+    databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com/.firebasedatabase.app", 
+    projectId: "pos21-8f88f",
+    storageBucket: "pos21-8f88f.firebasestorage.app",
+    messagingSenderId: "49870857272",
+    appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
         const displayChannel = new BroadcastChannel('pos_system_channel');
 
