@@ -1,728 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurable POS - Staff Panel</title>
-
-    <!-- External Libraries (QR Code & Barcode Generators) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-
-    <!-- 1. Firebase Core & Realtime Database SDKs (Compat Version) -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-    <script>
-      // 2. Your exact Firebase configuration
-      const firebaseConfig = {
-        apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-        authDomain: "pos21-8f88f.firebaseapp.com",
-        databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-        projectId: "pos21-8f88f",
-        storageBucket: "pos21-8f88f.firebasestorage.app",
-        messagingSenderId: "49870857272",
-        appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-      };
-
-      // 3. Initialize Firebase & Database instance globally
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      const db = firebase.database();
-    </script>
-
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-dark: #1d4ed8;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --warning: #f97316;
-            --dark-bg: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --input-bg: #0f172a;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background-color: var(--dark-bg); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
-
-        nav { background-color: #020617; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); }
-        .nav-brand { font-size: 1.4rem; font-weight: bold; }
-        .nav-links { display: flex; gap: 10px; }
-        .nav-btn { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
-        .nav-btn:hover, .nav-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
-
-        .main-content { flex: 1; padding: 25px; max-width: 1300px; width: 100%; margin: 0 auto; }
-        .page-view { display: none; }
-        .page-view.active-view { display: block; }
-        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); margin-bottom: 25px; }
-        .split-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
-
-        @media (max-width: 900px) { .split-layout { grid-template-columns: 1fr; } }
-        h2 { margin-bottom: 20px; padding-bottom: 8px; border-bottom: 2px solid var(--card-border); color: var(--text-main); }
-
-        .form-inline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted); }
-        input { width: 100%; padding: 10px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-main); border-radius: 6px; font-size: 1rem; outline: none; }
-
-        .btn { padding: 10px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; display: inline-block; transition: background-color 0.2s; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-success { background: var(--success); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-warning { background: var(--warning); color: white; }
-        .btn-block { width: 100%; display: block; }
-        .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
-        .btn-lg { padding: 18px 24px; font-size: 1.3rem; }
-
-        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-bottom: 25px; }
-        .product-item { background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 15px 10px; text-align: center; cursor: pointer; transition: transform 0.1s, border-color 0.2s; position: relative; }
-        .product-item:hover { border-color: var(--primary); transform: scale(1.02); }
-        .barcode-tag { font-size: 0.7rem; background: var(--card-border); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; font-family: monospace; }
-
-        .cart-table, .inventory-table { width: 100%; border-collapse: collapse; }
-        .cart-table th, .cart-table td, .inventory-table th, .inventory-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--card-border); }
-        .cart-table th, .inventory-table th { color: var(--text-muted); }
-        .summary-box { background: #0f172a; padding: 15px; border-radius: 8px; font-size: 1.3rem; font-weight: bold; display: flex; justify-content: space-between; margin: 20px 0; border: 1px solid var(--card-border); border-left: 5px solid var(--primary); }
-
-        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; z-index: 10000; backdrop-filter: blur(4px); }
-        .modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 25px; width: 100%; max-width: 650px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); position: relative; color: var(--text-main); }
-        
-        .checkout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; }
-        @media (max-width: 600px) { .checkout-grid { grid-template-columns: 1fr; } }
-
-        .numpad-container { display: flex; flex-direction: column; gap: 10px; }
-        .numpad-display { background: #0f172a; border: 1px solid var(--card-border); color: #38bdf8; font-size: 1.5rem; font-weight: bold; text-align: center; padding: 10px; border-radius: 8px; font-family: monospace; letter-spacing: 2px; }
-        .numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .num-btn { background: #0f172a; border: 1px solid var(--card-border); color: #fff; font-size: 1.2rem; font-weight: bold; padding: 14px; border-radius: 8px; cursor: pointer; transition: background 0.1s; }
-        .num-btn:hover { background: #334155; }
-        .num-btn:active { background: var(--primary); }
-
-        .qr-display-box { background: #ffffff; padding: 12px; border-radius: 12px; display: inline-block; }
-
-        .scanner-status { display: inline-flex; align-items: center; gap: 6px; background: #064e3b; color: #a7f3d0; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #047857; }
-        .scanner-pulse { width: 8px; height: 8px; background: #34d399; border-radius: 50%; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.4; } 100% { transform: scale(0.9); opacity: 1; } }
-
-        #toast { position: fixed; bottom: 25px; right: 25px; padding: 15px 25px; background: #334155; color: white; border-radius: 8px; display: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); z-index: 99999; font-weight: 500; border: 1px solid #475569; }
-        .display-link-box { display: flex; align-items: center; justify-content: space-between; background: #1e3a8a; color: white; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; border: 1px solid #2563eb; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS System - Account Top Up</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #666;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #a0c4ff;
+      cursor: not-allowed;
+    }
+    .status-msg {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      display: none;
+    }
+    .status-msg.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .status-msg.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
 </head>
 <body>
 
-    <nav>
-        <div class="nav-brand">🏪 Staff POS Terminal</div>
-        <div class="nav-links">
-            <button class="nav-btn active" onclick="switchView('register-view', this)">POS Register</button>
-            <button class="nav-btn" onclick="switchView('topup-view', this)">Top-Up Balance</button>
-            <button class="nav-btn" onclick="switchView('customer-gen-view', this)">+ Create Profile</button>
-            <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Manage Products</button>
-        </div>
-    </nav>
+  <div class="card">
+    <h2>Account Top-Up</h2>
+    <form id="topUpForm">
+      <div class="form-group">
+        <label for="accountId">Account ID / Barcode</label>
+        <input type="text" id="accountId" placeholder="e.g. 10011" required />
+      </div>
+      <div class="form-group">
+        <label for="amount">Deposit Amount ($)</label>
+        <input type="number" id="amount" step="0.01" placeholder="e.g. 25.00" required />
+      </div>
+      <button type="submit" id="submitBtn">Complete Electronic Deposit</button>
+    </form>
+    <div id="statusMsg" class="status-msg"></div>
+  </div>
 
-    <div class="main-content">
-        <div id="register-view" class="page-view active-view">
-            <div class="display-link-box">
-                <span>🖥️ Dual Screen Mode Active</span>
-                <a href="customer_display.html" target="_blank" class="btn btn-primary btn-sm" style="background:#fff; color:#0f172a;">Open Customer View Tab</a>
-            </div>
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      query, 
+      where, 
+      getDocs, 
+      updateDoc, 
+      doc, 
+      increment 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-            <div class="scanner-status">
-                <div class="scanner-pulse"></div>
-                <span>USB Barcode Scanner Ready</span>
-            </div>
-            
-            <div class="split-layout">
-                <div>
-                    <div class="card">
-                        <h2>Menu Products Matrix</h2>
-                        <div class="product-grid" id="pos-menu-grid"></div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class="card">
-                        <h2>Current Order Invoice</h2>
-                        <table class="cart-table">
-                            <thead>
-                                <tr><th>Item</th><th>Qty</th><th>Subtotal</th></tr>
-                            </thead>
-                            <tbody id="cart-rows">
-                                <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Cart is empty</td></tr>
-                            </tbody>
-                        </table>
-                        
-                        <div class="summary-box">
-                            <span>Total Due:</span>
-                            <span id="cart-total-display">$0.00</span>
-                        </div>
+    // ⚠️ REPLACE THIS WITH YOUR FIREBASE CONFIG FROM FIREBASE CONSOLE
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
 
-                        <button class="btn btn-success btn-block btn-lg" id="checkout-trigger-btn" onclick="openCheckoutModal()" style="margin-bottom: 12px;">🔒 Proceed to Checkout</button>
-                        <button class="btn btn-danger btn-block" onclick="clearCart()" style="padding: 8px; font-size:0.85rem;">Void Cart Order</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    // Initialize Firebase & Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-        <div class="modal-backdrop" id="checkout-modal">
-            <div class="modal-content">
-                <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px;">✕ Cancel</button>
-                <h3>Complete Payment</h3>
-                <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin-top: 4px;" id="modal-total-display">$0.00</div>
+    const form = document.getElementById("topUpForm");
+    const accountInput = document.getElementById("accountId");
+    const amountInput = document.getElementById("amount");
+    const submitBtn = document.getElementById("submitBtn");
+    const statusMsg = document.getElementById("statusMsg");
 
-                <div class="checkout-grid">
-                    <div class="numpad-container">
-                        <label style="margin-bottom:2px;">Scan Card or Type ID:</label>
-                        <div class="numpad-display" id="numpad-input-val">------</div>
-                        
-                        <div class="numpad-grid">
-                            <button class="num-btn" onclick="pressNumpad('1')">1</button>
-                            <button class="num-btn" onclick="pressNumpad('2')">2</button>
-                            <button class="num-btn" onclick="pressNumpad('3')">3</button>
-                            <button class="num-btn" onclick="pressNumpad('4')">4</button>
-                            <button class="num-btn" onclick="pressNumpad('5')">5</button>
-                            <button class="num-btn" onclick="pressNumpad('6')">6</button>
-                            <button class="num-btn" onclick="pressNumpad('7')">7</button>
-                            <button class="num-btn" onclick="pressNumpad('8')">8</button>
-                            <button class="num-btn" onclick="pressNumpad('9')">9</button>
-                            <button class="num-btn" style="color:var(--danger);" onclick="pressNumpad('C')">C</button>
-                            <button class="num-btn" onclick="pressNumpad('0')">0</button>
-                            <button class="num-btn" style="color:var(--warning);" onclick="pressNumpad('DEL')">⌫</button>
-                        </div>
-
-                        <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 12px; margin-top: 4px;">Charge Account</button>
-                    </div>
-
-                    <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid var(--card-border); padding-left: 15px;">
-                        <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">OR Customer Scans QR with Phone</p>
-                        <div class="qr-display-box">
-                            <div id="pos-checkout-qr"></div>
-                        </div>
-                        <div style="color: #34d399; font-weight: 600; font-size: 0.8rem; margin-top: 8px;">⌛ Ready for payment</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="topup-view" class="page-view">
-            <div class="card" style="max-width: 500px; margin: 0 auto;">
-                <h2>Account Balance Top-Up Gateway</h2>
-                <div class="form-group">
-                    <label>Enter Customer Numeric Account Code</label>
-                    <input type="text" id="topup-barcode-search" placeholder="e.g. 10011">
-                </div>
-                <div class="form-group">
-                    <label>Deposit Amount ($ USD)</label>
-                    <input type="number" id="topup-amount-input" placeholder="0.00">
-                </div>
-                <button class="btn btn-primary btn-block" onclick="submitWalletTopUp()">Complete Electronic Deposit</button>
-            </div>
-        </div>
-
-        <div id="customer-gen-view" class="page-view">
-            <div class="card" style="max-width: 500px; margin: 0 auto;">
-                <h2>Register Custom Customer Profile</h2>
-                <div class="form-group">
-                    <label>Account Holder Name</label>
-                    <input type="text" id="new-user-name" placeholder="e.g. John Doe">
-                </div>
-                <div class="form-group">
-                    <label>Starting Balance Credit ($)</label>
-                    <input type="number" id="new-user-initial-balance" value="50.00">
-                </div>
-                <button class="btn btn-primary btn-block" onclick="createNewBarcodeProfile()">Save Customer Profile</button>
-            </div>
-        </div>
-
-        <div id="inventory-view" class="page-view">
-            <div class="card">
-                <h2 id="form-action-title">Add New Product to System</h2>
-                <input type="hidden" id="edit-product-id-tracker" value="">
-                
-                <div class="form-inline">
-                    <div>
-                        <label>Name</label>
-                        <input type="text" id="new-product-name" placeholder="e.g. Espresso">
-                    </div>
-                    <div>
-                        <label>Display Emoji Icon</label>
-                        <input type="text" id="new-product-icon" placeholder="e.g. ☕">
-                    </div>
-                    <div>
-                        <label>Unit Price ($)</label>
-                        <input type="number" id="new-product-price" placeholder="0.00" step="0.01">
-                    </div>
-                    <div>
-                        <label>Configure Barcode Number</label>
-                        <input type="text" id="new-product-barcode" placeholder="e.g. 1001">
-                    </div>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-success" id="btn-inventory-submit" onclick="saveProductForm()">Commit Product Registry</button>
-                    <button class="btn btn-danger" id="btn-inventory-cancel" onclick="resetProductForm()" style="display:none;">Cancel Edit</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Live Database Catalog Management</h2>
-                <table class="inventory-table">
-                    <thead>
-                        <tr>
-                            <th>Icon</th>
-                            <th>Product Label</th>
-                            <th>Unit Value Price</th>
-                            <th>Assigned Barcode String</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-table-body"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div id="toast">Notification Message</div>
-
-    <script>
-        const displayChannel = new BroadcastChannel('pos_system_channel');
-
-        let products = [];
-        let cart = [];
-        let totalDue = 0.00;
-        let activeInvoiceId = null;
-        let modalQrInstance = null;
-        let typedAccountId = "";
-
-        let barcodeBuffer = "";
-        let lastKeyTime = Date.now();
-
-        function fireToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 3500);
-        }
-
-        function switchView(viewId, btnElement) {
-            document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active-view'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(viewId).classList.add('active-view');
-            if(btnElement) btnElement.classList.add('active');
-        }
-
-        // Live Product Sync from Firebase
-        db.ref('products').on('value', (snapshot) => {
-            const val = snapshot.val();
-            products = [];
-            if (val) {
-                Object.keys(val).forEach(key => {
-                    products.push({ id: key, ...val[key] });
-                });
-            } else {
-                // Initialize default catalog if empty
-                const defaultSeed = {
-                    p1: { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
-                    p2: { barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
-                    p3: { barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
-                };
-                db.ref('products').set(defaultSeed);
-            }
-            renderProductGrid();
-            buildInventoryManagementTables();
-        });
-
-       // Updated Wallet Top-Up Function
-function submitWalletTopUp() {
-    const code = document.getElementById('topup-barcode-search').value.trim();
-    const amount = parseFloat(document.getElementById('topup-amount-input').value);
-
-    if (!code || isNaN(amount) || amount <= 0) { 
-        fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
-        return; 
+    function showMessage(text, isError = false) {
+      statusMsg.innerText = text;
+      statusMsg.className = `status-msg ${isError ? 'error' : 'success'}`;
+      statusMsg.style.display = "block";
     }
 
-    const accountRef = db.ref('accounts/' + code);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-    accountRef.once('value').then((snapshot) => {
-        const data = snapshot.val();
+      const accountId = accountInput.value.trim();
+      const amount = parseFloat(amountInput.value);
 
-        if (!data) {
-            fireToast(`❌ Account #${code} does not exist. Create the profile first.`);
-            return;
-        }
-
-        // Calculate new balance securely preserving existing numbers
-        const currentBalance = parseFloat(data.balance) || 0;
-        const newBalance = currentBalance + amount;
-
-        // Extract whatever name field is present (name or displayName)
-        const accountName = data.name || data.displayName || `Account (${code})`;
-
-        // IMPORTANT: Use .update() instead of .set() so existing profile fields are NOT wiped out
-        return accountRef.update({
-            balance: newBalance
-        }).then(() => {
-            document.getElementById('topup-barcode-search').value = '';
-            document.getElementById('topup-amount-input').value = '';
-            fireToast(`✅ Deposited $${amount.toFixed(2)} to ${accountName}. New Balance: $${newBalance.toFixed(2)}`);
-        });
-    }).catch((err) => {
-        console.error(err);
-        fireToast("❌ Top-up failed: " + err.message);
-    });
-}
-
-// Updated Direct ID Charge Function
-function processDirectIdCharge() {
-    if (!typedAccountId) {
-        fireToast("❌ Please enter or scan an Account ID.");
+      if (!accountId || isNaN(amount) || amount <= 0) {
+        showMessage("Please enter a valid Account ID and Amount.", true);
         return;
-    }
+      }
 
-    const accountRef = db.ref('accounts/' + typedAccountId);
+      // Lock UI
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Processing...";
+      statusMsg.style.display = "none";
 
-    accountRef.once('value').then((snapshot) => {
-        const customer = snapshot.val();
+      try {
+        // 1. Search for the document where field `accountId == "10011"`
+        const accountsRef = collection(db, "accounts");
+        const q = query(accountsRef, where("accountId", "==", accountId));
+        const querySnapshot = await getDocs(q);
 
-        if (!customer) {
-            fireToast(`❌ Account ID #${typedAccountId} not found.`);
-            return;
+        if (querySnapshot.empty) {
+          showMessage(`Account ID "${accountId}" not found!`, true);
+          return;
         }
 
-        const currentBal = parseFloat(customer.balance) || 0;
-
-        if (currentBal < totalDue) {
-            fireToast(`❌ Insufficient funds! Current Balance: $${currentBal.toFixed(2)}`);
-            return;
-        }
-
-        const newBalance = currentBal - totalDue;
-        const customerName = customer.name || customer.displayName || `User #${typedAccountId}`;
-
-        // Use .update() to preserve all profile data in Firebase
-        accountRef.update({ 
-            balance: newBalance 
-        }).then(() => {
-            completeCheckoutSuccess(customerName, totalDue);
+        // 2. Perform atomic update using increment()
+        const updatePromises = querySnapshot.docs.map(accountDoc => {
+          const docRef = doc(db, "accounts", accountDoc.id);
+          return updateDoc(docRef, {
+            balance: increment(amount)
+          });
         });
-    }).catch((err) => {
-        console.error(err);
-        fireToast("❌ Charge Failed: " + err.message);
+
+        await Promise.all(updatePromises);
+
+        // 3. Show success message ONLY after Firebase write finishes
+        showMessage(`✅ Successfully added $${amount.toFixed(2)} to Account ${accountId}`);
+        form.reset();
+
+      } catch (error) {
+        console.error("Firebase update failed:", error);
+        showMessage("Failed to update Firebase: " + error.message, true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Complete Electronic Deposit";
+      }
     });
-}
-
-            const accountRef = db.ref('accounts/' + typedAccountId);
-
-            accountRef.once('value').then((snapshot) => {
-                const customer = snapshot.val();
-
-                if (!customer) {
-                    fireToast(`❌ Account ID #${typedAccountId} not found.`);
-                    return;
-                }
-
-                const currentBal = parseFloat(customer.balance) || 0;
-
-                if (currentBal < totalDue) {
-                    fireToast(`❌ Insufficient funds! Current Balance: $${currentBal.toFixed(2)}`);
-                    return;
-                }
-
-                const newBalance = currentBal - totalDue;
-
-                accountRef.update({ balance: newBalance }).then(() => {
-                    completeCheckoutSuccess(customer.name || `User #${typedAccountId}`, totalDue);
-                });
-            }).catch((err) => {
-                console.error(err);
-                fireToast("❌ Charge Failed: " + err.message);
-            });
-        
-
-        // USB Scanner Listener
-        window.addEventListener("keydown", function(e) {
-            const currentTime = Date.now();
-            if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return; 
-
-            if (currentTime - lastKeyTime > 100) barcodeBuffer = "";
-            lastKeyTime = currentTime;
-
-            const isModalOpen = document.getElementById('checkout-modal').style.display === 'flex';
-
-            if (e.key === "Enter") {
-                if (barcodeBuffer.length > 0) {
-                    const scannedCode = barcodeBuffer.trim();
-                    barcodeBuffer = "";
-
-                    if (isModalOpen) {
-                        typedAccountId = scannedCode;
-                        updateNumpadUI();
-                        processDirectIdCharge();
-                    } else {
-                        const matchedProduct = products.find(p => p.barcode === scannedCode);
-                        if (matchedProduct) addItemToCart(matchedProduct);
-                    }
-                }
-                e.preventDefault();
-                return;
-            }
-
-            if (/[0-9]/.test(e.key)) {
-                barcodeBuffer += e.key;
-                if (isModalOpen) pressNumpad(e.key);
-            } else if (isModalOpen && (e.key === "Backspace" || e.key === "Delete")) {
-                pressNumpad('DEL');
-            }
-        });
-
-        function pressNumpad(val) {
-            if (val === 'C') {
-                typedAccountId = "";
-            } else if (val === 'DEL') {
-                typedAccountId = typedAccountId.slice(0, -1);
-            } else {
-                if (typedAccountId.length < 10) typedAccountId += val;
-            }
-            updateNumpadUI();
-        }
-
-        function updateNumpadUI() {
-            document.getElementById('numpad-input-val').innerText = typedAccountId || "------";
-        }
-
-        function completeCheckoutSuccess(customerName, amountPaid) {
-            fireToast(`✅ Payment Successful! $${amountPaid.toFixed(2)} charged to ${customerName}`);
-            
-            displayChannel.postMessage({
-                type: 'PAYMENT_STATUS',
-                status: 'SUCCESS',
-                message: `✅ Paid $${amountPaid.toFixed(2)} by ${customerName}`
-            });
-
-            clearCart();
-            closeCheckoutModal();
-        }
-
-        function openCheckoutModal() {
-            if (cart.length === 0) {
-                fireToast("❌ Cart is empty.");
-                return;
-            }
-
-            typedAccountId = "";
-            updateNumpadUI();
-
-            activeInvoiceId = "INV_" + Date.now();
-            document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
-            document.getElementById('checkout-modal').style.display = 'flex';
-
-            const invoicePayload = JSON.stringify({
-                type: "POS_INVOICE",
-                invoiceId: activeInvoiceId,
-                amount: totalDue
-            });
-
-            const qrBox = document.getElementById('pos-checkout-qr');
-            if (modalQrInstance) {
-                modalQrInstance.clear();
-                modalQrInstance.makeCode(invoicePayload);
-            } else {
-                qrBox.innerHTML = '';
-                modalQrInstance = new QRCode(qrBox, {
-                    text: invoicePayload,
-                    width: 150,
-                    height: 150,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-            }
-
-            const paymentsRef = db.ref("transactions").child(activeInvoiceId);
-            paymentsRef.on("value", (snapshot) => {
-                const tx = snapshot.val();
-                if (tx && tx.status === "COMPLETED") {
-                    completeCheckoutSuccess(tx.senderName || "Customer", totalDue);
-                    paymentsRef.off(); 
-                }
-            });
-
-            displayChannel.postMessage({
-                type: 'SHOW_INVOICE_QR',
-                invoiceId: activeInvoiceId,
-                amount: totalDue,
-                cart: cart
-            });
-        }
-
-        function closeCheckoutModal() {
-            document.getElementById('checkout-modal').style.display = 'none';
-            if (activeInvoiceId) {
-                db.ref("transactions").child(activeInvoiceId).off();
-            }
-            activeInvoiceId = null;
-            typedAccountId = "";
-            syncCustomerDisplay();
-        }
-
-        function addItemToCart(product) {
-            const match = cart.find(c => c.id === product.id);
-            if (match) { 
-                match.quantity++; 
-            } else { 
-                cart.push({ id: product.id, name: product.name, icon: product.icon, price: product.price, quantity: 1 }); 
-            }
-            buildCartUI();
-        }
-
-        function syncCustomerDisplay() {
-            displayChannel.postMessage({
-                type: 'UPDATE_CART',
-                cart: cart,
-                total: totalDue
-            });
-        }
-
-        function clearCart() { cart = []; buildCartUI(); }
-
-        function buildCartUI() {
-            const container = document.getElementById('cart-rows');
-            if(cart.length === 0) {
-                container.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Cart is empty</td></tr>`;
-                document.getElementById('cart-total-display').innerText = "$0.00";
-                totalDue = 0.00; 
-                syncCustomerDisplay();
-                return;
-            }
-            container.innerHTML = ''; totalDue = 0;
-            cart.forEach(item => {
-                let cost = item.price * item.quantity; totalDue += cost;
-                let tr = document.createElement('tr');
-                tr.innerHTML = `<td>${item.icon} ${item.name}</td><td>${item.quantity}x</td><td>$${cost.toFixed(2)}</td>`;
-                container.appendChild(tr);
-            });
-            document.getElementById('cart-total-display').innerText = `$${totalDue.toFixed(2)}`;
-            syncCustomerDisplay();
-        }
-
-        function renderProductGrid() {
-            const grid = document.getElementById('pos-menu-grid');
-            grid.innerHTML = '';
-            products.forEach(p => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'product-item';
-                itemDiv.onclick = () => addItemToCart(p);
-                itemDiv.innerHTML = `
-                    <div style="font-size:1.8rem; margin-bottom:5px;">${p.icon}</div>
-                    <div style="font-weight:600; font-size:0.85rem;">${p.name}</div>
-                    <div style="color:var(--primary); font-weight:700; margin-top:2px;">$${Number(p.price).toFixed(2)}</div>
-                    <div><span class="barcode-tag"># ${p.barcode}</span></div>
-                `;
-                grid.appendChild(itemDiv);
-            });
-        }
-
-        function buildInventoryManagementTables() {
-            const tbody = document.getElementById('inventory-table-body');
-            tbody.innerHTML = '';
-            products.forEach(p => {
-                let tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><span style="font-size:1.3rem;">${p.icon}</span></td>
-                    <td><strong>${p.name}</strong></td>
-                    <td>$${Number(p.price).toFixed(2)}</td>
-                    <td><svg id="barcode-prod-${p.id}" style="background:#fff; padding:4px; border-radius:4px;"></svg></td>
-                    <td>
-                        <button class="btn btn-warning btn-sm" onclick="startEditProduct('${p.id}')">Edit</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-
-                try {
-                    JsBarcode(`#barcode-prod-${p.id}`, p.barcode, {
-                        format: "CODE128", width: 1.2, height: 35, displayValue: true
-                    });
-                } catch(err) { console.error(err); }
-            });
-        }
-
-        function saveProductForm() {
-            const targetId = document.getElementById('edit-product-id-tracker').value;
-            const name = document.getElementById('new-product-name').value.trim();
-            const icon = document.getElementById('new-product-icon').value.trim() || "🏷️";
-            const price = parseFloat(document.getElementById('new-product-price').value);
-            const barcode = document.getElementById('new-product-barcode').value.trim();
-
-            if (!name || isNaN(price) || !barcode) { fireToast("❌ All inputs required."); return; }
-
-            const prodId = targetId ? targetId : 'p_' + Date.now();
-            
-            db.ref('products/' + prodId).set({ barcode, icon, name, price }).then(() => {
-                resetProductForm();
-                fireToast("✅ Product saved in database.");
-            });
-        }
-
-        function startEditProduct(productId) {
-            let match = products.find(p => p.id === productId);
-            if(!match) return;
-            document.getElementById('edit-product-id-tracker').value = match.id;
-            document.getElementById('new-product-name').value = match.name;
-            document.getElementById('new-product-icon').value = match.icon;
-            document.getElementById('new-product-price').value = match.price;
-            document.getElementById('new-product-barcode').value = match.barcode;
-            document.getElementById('form-action-title').innerText = `Editing: ${match.name}`;
-            document.getElementById('btn-inventory-submit').innerText = "Update Product";
-            document.getElementById('btn-inventory-cancel').style.display = "inline-block";
-        }
-
-        function resetProductForm() {
-            document.getElementById('edit-product-id-tracker').value = '';
-            document.getElementById('new-product-name').value = '';
-            document.getElementById('new-product-icon').value = '';
-            document.getElementById('new-product-price').value = '';
-            document.getElementById('new-product-barcode').value = '';
-            document.getElementById('form-action-title').innerText = "Add New Product to System";
-            document.getElementById('btn-inventory-submit').innerText = "Commit Product Registry";
-            document.getElementById('btn-inventory-cancel').style.display = "none";
-        }
-
-        function deleteProduct(productId) {
-            if(confirm("Are you sure you want to remove this product?")) {
-                db.ref('products/' + productId).remove().then(() => {
-                    fireToast("🗑️ Product removed.");
-                });
-            }
-        }
-
-        function createNewBarcodeProfile() {
-            const name = document.getElementById('new-user-name').value.trim();
-            const balance = parseFloat(document.getElementById('new-user-initial-balance').value);
-
-            if (!name || isNaN(balance)) {
-                fireToast("❌ Please fill in all fields.");
-                return;
-            }
-
-            const autoId = Math.floor(10000 + Math.random() * 90000).toString();
-
-            db.ref('accounts/' + autoId).set({
-                id: autoId,
-                name: name,
-                balance: balance
-            }).then(() => {
-                fireToast(`✅ Profile Created! ID: ${autoId} - $${balance.toFixed(2)}`);
-                document.getElementById('new-user-name').value = '';
-                document.getElementById('new-user-initial-balance').value = '50.00';
-            }).catch(err => {
-                fireToast("❌ Save failed: " + err.message);
-            });
-        }
-    </script>
+  </script>
 </body>
 </html>
