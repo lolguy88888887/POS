@@ -4,13 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurable POS - Staff Panel</title>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+   <!-- 1. Firebase Core & Realtime Database SDKs (Compat Version) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<script>
+  // 2. Your exact Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+    authDomain: "pos21-8f88f.firebaseapp.com",
+    databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+    projectId: "pos21-8f88f",
+    storageBucket: "pos21-8f88f.firebasestorage.app",
+    messagingSenderId: "49870857272",
+    appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+  };
+
+  // 3. Initialize Firebase & Database instance
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const db = firebase.database();
+</script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -267,16 +282,6 @@
     <div id="toast">Notification Message</div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-            authDomain: "pos21-8f88f.firebaseapp.com",
-            databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-            projectId: "pos21-8f88f",
-            storageBucket: "pos21-8f88f.firebasestorage.app",
-            messagingSenderId: "49870857272",
-            appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-        };
-        
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
@@ -674,27 +679,6 @@
             });
         }
     </script>
-    <!-- 1. Firebase Core & Realtime Database SDKs (Compat Version) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-<script>
-  // 2. Your exact Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
-    authDomain: "pos21-8f88f.firebaseapp.com",
-    databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
-    projectId: "pos21-8f88f",
-    storageBucket: "pos21-8f88f.firebasestorage.app",
-    messagingSenderId: "49870857272",
-    appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
-  };
-
-  // 3. Initialize Firebase & Database instance
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  const db = firebase.database();
 </script>
 </body>
 </html>
