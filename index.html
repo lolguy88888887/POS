@@ -335,49 +335,85 @@
             buildInventoryManagementTables();
         });
 
-        // Top-Up Account directly to Firebase
-        function submitWalletTopUp() {
-            const code = document.getElementById('topup-barcode-search').value.trim();
-            const amount = parseFloat(document.getElementById('topup-amount-input').value);
+       // Updated Wallet Top-Up Function
+function submitWalletTopUp() {
+    const code = document.getElementById('topup-barcode-search').value.trim();
+    const amount = parseFloat(document.getElementById('topup-amount-input').value);
 
-            if (!code || isNaN(amount) || amount <= 0) { 
-                fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
-                return; 
-            }
+    if (!code || isNaN(amount) || amount <= 0) { 
+        fireToast("❌ Enter valid numeric Account ID and Deposit Amount."); 
+        return; 
+    }
 
-            const accountRef = db.ref('accounts/' + code);
+    const accountRef = db.ref('accounts/' + code);
 
-            accountRef.once('value').then((snapshot) => {
-                const data = snapshot.val();
-                let newBalance = amount;
-                let name = `Account (${code})`;
+    accountRef.once('value').then((snapshot) => {
+        const data = snapshot.val();
 
-                if (data) {
-                    newBalance = (parseFloat(data.balance) || 0) + amount;
-                    name = data.name || name;
-                }
-
-                return accountRef.set({
-                    id: code,
-                    name: name,
-                    balance: newBalance
-                }).then(() => {
-                    document.getElementById('topup-barcode-search').value = '';
-                    document.getElementById('topup-amount-input').value = '';
-                    fireToast(`✅ Deposited $${amount.toFixed(2)} to ${name}. New Balance: $${newBalance.toFixed(2)}`);
-                });
-            }).catch((err) => {
-                console.error(err);
-                fireToast("❌ Write failed: " + err.message);
-            });
+        if (!data) {
+            fireToast(`❌ Account #${code} does not exist. Create the profile first.`);
+            return;
         }
 
-        // Charge Account via Numpad or Scan
-        function processDirectIdCharge() {
-            if (!typedAccountId) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
+        // Calculate new balance securely preserving existing numbers
+        const currentBalance = parseFloat(data.balance) || 0;
+        const newBalance = currentBalance + amount;
+
+        // Extract whatever name field is present (name or displayName)
+        const accountName = data.name || data.displayName || `Account (${code})`;
+
+        // IMPORTANT: Use .update() instead of .set() so existing profile fields are NOT wiped out
+        return accountRef.update({
+            balance: newBalance
+        }).then(() => {
+            document.getElementById('topup-barcode-search').value = '';
+            document.getElementById('topup-amount-input').value = '';
+            fireToast(`✅ Deposited $${amount.toFixed(2)} to ${accountName}. New Balance: $${newBalance.toFixed(2)}`);
+        });
+    }).catch((err) => {
+        console.error(err);
+        fireToast("❌ Top-up failed: " + err.message);
+    });
+}
+
+// Updated Direct ID Charge Function
+function processDirectIdCharge() {
+    if (!typedAccountId) {
+        fireToast("❌ Please enter or scan an Account ID.");
+        return;
+    }
+
+    const accountRef = db.ref('accounts/' + typedAccountId);
+
+    accountRef.once('value').then((snapshot) => {
+        const customer = snapshot.val();
+
+        if (!customer) {
+            fireToast(`❌ Account ID #${typedAccountId} not found.`);
+            return;
+        }
+
+        const currentBal = parseFloat(customer.balance) || 0;
+
+        if (currentBal < totalDue) {
+            fireToast(`❌ Insufficient funds! Current Balance: $${currentBal.toFixed(2)}`);
+            return;
+        }
+
+        const newBalance = currentBal - totalDue;
+        const customerName = customer.name || customer.displayName || `User #${typedAccountId}`;
+
+        // Use .update() to preserve all profile data in Firebase
+        accountRef.update({ 
+            balance: newBalance 
+        }).then(() => {
+            completeCheckoutSuccess(customerName, totalDue);
+        });
+    }).catch((err) => {
+        console.error(err);
+        fireToast("❌ Charge Failed: " + err.message);
+    });
+}
 
             const accountRef = db.ref('accounts/' + typedAccountId);
 
