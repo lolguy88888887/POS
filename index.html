@@ -118,7 +118,7 @@
         <div class="nav-brand">🏪 Staff POS Terminal</div>
         <div class="nav-links">
             <button class="nav-btn active" onclick="switchView('register-view', this)">POS Register</button>
-           <button class="nav-btn" onclick="window.open('topup.html', '_blank')">Top-Up Balance ↗</button>
+            <button class="nav-btn" onclick="switchView('topup-view', this)">Top-Up Balance</button>
             <button class="nav-btn" onclick="switchView('customer-gen-view', this)">+ Create Profile</button>
             <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Manage Products</button>
         </div>
@@ -637,7 +637,7 @@
             products.forEach(p => {
                 let tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><span style="font-size:1.3rem;">${p.icon}</span></td>
+                    <td><span style="font-size:1.3rem;">${p.icon || '📦'}</span></td>
                     <td><strong>${p.name}</strong></td>
                     <td>$${Number(p.price).toFixed(2)}</td>
                     <td><svg id="barcode-prod-${p.id}" style="background:#fff; padding:4px; border-radius:4px;"></svg></td>
@@ -648,71 +648,80 @@
                 `;
                 tbody.appendChild(tr);
 
+                // Render Barcode image via JsBarcode
                 try {
-                    JsBarcode(`#barcode-prod-${p.id}`, p.barcode, {
-                        format: "CODE128", width: 1.2, height: 35, displayValue: true
+                    JsBarcode(`#barcode-prod-${p.id}`, p.barcode || "0000", {
+                        format: "CODE128",
+                        width: 1.5,
+                        height: 35,
+                        displayValue: true,
+                        fontSize: 11
                     });
-                } catch(err) { console.error(err); }
+                } catch(e) {
+                    console.error("Barcode render fail:", e);
+                }
             });
         }
 
         function saveProductForm() {
-            const targetId = document.getElementById('edit-product-id-tracker').value;
+            const editId = document.getElementById('edit-product-id-tracker').value;
             const name = document.getElementById('new-product-name').value.trim();
-            const icon = document.getElementById('new-product-icon').value.trim() || "🏷️";
+            const icon = document.getElementById('new-product-icon').value.trim() || "📦";
             const price = parseFloat(document.getElementById('new-product-price').value);
             const barcode = document.getElementById('new-product-barcode').value.trim();
 
-            if (!name || isNaN(price) || price < 0 || !barcode) {
-                fireToast("❌ Please fill out all product fields properly.");
+            if (!name || isNaN(price) || !barcode) {
+                fireToast("❌ Fill in all details (Name, Price, Barcode).");
                 return;
             }
 
             const payload = { name, icon, price, barcode };
 
-            if (targetId) {
-                db.ref('products/' + targetId).update(payload).then(() => {
-                    fireToast("✅ Product updated successfully!");
+            if (editId) {
+                db.ref('products').child(editId).update(payload).then(() => {
+                    fireToast("✅ Product updated!");
                     resetProductForm();
-                }).catch(err => fireToast("❌ Error: " + err.message));
+                });
             } else {
-                const newRef = db.ref('products').push();
-                newRef.set(payload).then(() => {
-                    fireToast("✅ New product added!");
+                db.ref('products').push(payload).then(() => {
+                    fireToast("✅ Product added successfully!");
                     resetProductForm();
-                }).catch(err => fireToast("❌ Error: " + err.message));
+                });
             }
         }
 
         function startEditProduct(id) {
             const prod = products.find(p => p.id === id);
             if (!prod) return;
+
             document.getElementById('edit-product-id-tracker').value = prod.id;
             document.getElementById('new-product-name').value = prod.name;
             document.getElementById('new-product-icon').value = prod.icon;
             document.getElementById('new-product-price').value = prod.price;
             document.getElementById('new-product-barcode').value = prod.barcode;
-            document.getElementById('form-action-title').innerText = "Edit Product: " + prod.name;
+
+            document.getElementById('form-action-title').innerText = "Edit Existing Product";
             document.getElementById('btn-inventory-submit').innerText = "Update Product";
-            document.getElementById('btn-inventory-cancel').style.display = 'inline-block';
+            document.getElementById('btn-inventory-cancel').style.display = "inline-block";
         }
 
         function resetProductForm() {
-            document.getElementById('edit-product-id-tracker').value = '';
-            document.getElementById('new-product-name').value = '';
-            document.getElementById('new-product-icon').value = '';
-            document.getElementById('new-product-price').value = '';
-            document.getElementById('new-product-barcode').value = '';
+            document.getElementById('edit-product-id-tracker').value = "";
+            document.getElementById('new-product-name').value = "";
+            document.getElementById('new-product-icon').value = "";
+            document.getElementById('new-product-price').value = "";
+            document.getElementById('new-product-barcode').value = "";
+
             document.getElementById('form-action-title').innerText = "Add New Product to System";
             document.getElementById('btn-inventory-submit').innerText = "Commit Product Registry";
-            document.getElementById('btn-inventory-cancel').style.display = 'none';
+            document.getElementById('btn-inventory-cancel').style.display = "none";
         }
 
         function deleteProduct(id) {
-            if (confirm("Are you sure you want to delete this product?")) {
-                db.ref('products/' + id).remove().then(() => {
-                    fireToast("🗑️ Product deleted.");
-                }).catch(err => fireToast("❌ Error: " + err.message));
+            if (confirm("Are you sure you want to remove this product from inventory?")) {
+                db.ref('products').child(id).remove().then(() => {
+                    fireToast("🗑️ Product removed.");
+                });
             }
         }
     </script>
