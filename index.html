@@ -264,7 +264,7 @@
 
         <div class="account-pay-box">
           <label style="font-size: 0.8rem; color: var(--muted);">Customer Account (Optional)</label>
-          <input type="text" id="cartAccountId" placeholder="Enter Account ID / Barcode" />
+          <input type="text" id="cartAccountId" placeholder="Enter Account ID / UID / QR Code" />
           <div id="accountBalanceDisplay" style="font-size: 0.85rem; color: #38bdf8; display: none;"></div>
         </div>
 
@@ -286,6 +286,7 @@
       query,
       where,
       getDocs,
+      getDoc,
       doc,
       updateDoc,
       increment
@@ -309,6 +310,8 @@
     let availableProducts = [];
     let cart = [];
     let customerWindowRef = null;
+    let activeCustomerDocs = []; // Array of matching doc references & cached values
+    let activeAccountUnsub = null; // Live Firestore listener cleanup
 
     // Toast Notification helper
     function showNotification(msg) {
@@ -324,7 +327,6 @@
       if (data.type === 'ACCOUNT_TOPUP_SUCCESS') {
         showNotification(`⚡ Live Top-Up: +$${data.amountAdded.toFixed(2)} credited to Account #${data.accountId}`);
         
-        // Refresh customer account lookup if active
         const activeAcc = document.getElementById("cartAccountId").value.trim();
         if (activeAcc && activeAcc === data.accountId) {
           checkAccountBalance(activeAcc);
@@ -440,27 +442,83 @@
       updateCartUI();
     };
 
-    // Account Balance Verification
+    // --- ENHANCED MULTI-COLLECTION & REAL-TIME ACCOUNT LOOKUP ---
     const accInput = document.getElementById("cartAccountId");
     const balDisplay = document.getElementById("accountBalanceDisplay");
     
     async function checkAccountBalance(accId) {
-      if (!accId) { balDisplay.style.display = "none"; return; }
-      const q = query(collection(db, "accounts"), where("accountId", "==", accId));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const data = snap.docs[0].data();
-        balDisplay.innerText = `Balance: $${(parseFloat(data.balance) || 0).toFixed(2)}`;
-        balDisplay.style.display = "block";
+      if (activeAccountUnsub) {
+        activeAccountUnsub();
+        activeAccountUnsub = null;
+      }
+
+      if (!accId) { 
+        balDisplay.style.display = "none"; 
+        activeCustomerDocs = [];
+        return; 
+      }
+
+      activeCustomerDocs = [];
+
+      // Look across 'users' and 'accounts' collections via UID or accountId field
+      const searchTargets = [
+        { col: "users", ref: doc(db, "users", accId) },
+        { col: "accounts", ref: doc(db, "accounts", accId) }
+      ];
+
+      for (const t of searchTargets) {
+        const snap = await getDoc(t.ref);
+        if (snap.exists()) {
+          activeCustomerDocs.push({ ref: t.ref, data: snap.data() });
+        }
+      }
+
+      // If no direct document ID was found, fallback to field querying
+      if (activeCustomerDocs.length === 0) {
+        const qUsers = query(collection(db, "users"), where("accountId", "==", accId));
+        const qAccounts = query(collection(db, "accounts"), where("accountId", "==", accId));
+
+        const [snapU, snapA] = await Promise.all([getDocs(qUsers), getDocs(qAccounts)]);
+        snapU.docs.forEach(d => activeCustomerDocs.push({ ref: d.ref, data: d.data() }));
+        snapA.docs.forEach(d => activeCustomerDocs.push({ ref: d.ref, data: d.data() }));
+      }
+
+      if (activeCustomerDocs.length > 0) {
+        // Listen live to the primary matched customer document
+        const primaryRef = activeCustomerDocs[0].ref;
+        activeAccountUnsub = onSnapshot(primaryRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            // Read either 'wallet' or 'balance'
+            const rawVal = data.wallet !== undefined ? data.wallet : data.balance;
+            const balanceVal = parseFloat(rawVal) || 0;
+            const name = data.name || data.customerName || `Account #${accId}`;
+            
+            balDisplay.innerText = `👤 ${name} | Wallet: $${balanceVal.toFixed(2)}`;
+            balDisplay.style.display = "block";
+          }
+        });
       } else {
-        balDisplay.innerText = "Account not found";
+        balDisplay.innerText = "❌ Account / Customer UID Not Found";
         balDisplay.style.display = "block";
       }
     }
 
+    // Auto-Trigger account balance check on input change or Blur
     accInput.addEventListener("change", () => checkAccountBalance(accInput.value.trim()));
 
-    // Checkout Handling
+    // QR Barcode Auto-Enter Listener
+    accInput.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const scannedId = accInput.value.trim();
+        if (scannedId) {
+          await checkAccountBalance(scannedId);
+        }
+      }
+    });
+
+    // --- CHECKOUT & DEDUCTION HANDLING ---
     document.getElementById("checkoutBtn").onclick = async () => {
       if (cart.length === 0) {
         alert("Cart is empty!");
@@ -471,32 +529,46 @@
       const accId = accInput.value.trim();
 
       if (accId) {
-        // Charge Account
-        const q = query(collection(db, "accounts"), where("accountId", "==", accId));
-        const snap = await getDocs(q);
+        if (activeCustomerDocs.length === 0) {
+          await checkAccountBalance(accId);
+        }
 
-        if (snap.empty) {
-          alert("Invalid Account ID");
+        if (activeCustomerDocs.length === 0) {
+          alert("Invalid Customer Account ID / UID!");
           return;
         }
 
-        const accDoc = snap.docs[0];
-        const currentBal = parseFloat(accDoc.data().balance) || 0;
+        const primaryDocData = activeCustomerDocs[0].data;
+        const rawBal = primaryDocData.wallet !== undefined ? primaryDocData.wallet : primaryDocData.balance;
+        const currentBal = parseFloat(rawBal) || 0;
 
         if (currentBal < total) {
-          alert(`Insufficient account balance! Available: $${currentBal.toFixed(2)}`);
+          alert(`Insufficient wallet balance! Available: $${currentBal.toFixed(2)}, Required: $${total.toFixed(2)}`);
           return;
         }
 
-        await updateDoc(doc(db, "accounts", accDoc.id), {
-          balance: increment(-total)
-        });
+        // Subtract from ALL matched document paths & update both 'wallet' and 'balance' fields
+        const updatePromises = activeCustomerDocs.map(target => 
+          updateDoc(target.ref, {
+            wallet: increment(-total),
+            balance: increment(-total),
+            walletBalance: increment(-total),
+            lastPurchase: new Date().toISOString()
+          })
+        );
+
+        await Promise.all(updatePromises);
+        showNotification(`✅ Paid $${total.toFixed(2)} from Customer Wallet!`);
+      } else {
+        showNotification(`✅ Cash Sale Complete! Paid: $${total.toFixed(2)}`);
       }
 
-      showNotification(`✅ Order completed successfully! Total: $${total.toFixed(2)}`);
+      // Reset cart and account state
       cart = [];
       accInput.value = "";
+      if (activeAccountUnsub) { activeAccountUnsub(); activeAccountUnsub = null; }
       balDisplay.style.display = "none";
+      activeCustomerDocs = [];
       updateCartUI();
     };
   </script>
