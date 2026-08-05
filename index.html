@@ -3,221 +3,278 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>POS System - Account Top Up</title>
+  <title>POS Terminal - Staff Register</title>
   <style>
     :root {
       --primary: #007bff;
       --primary-hover: #0056b3;
-      --bg: #1e293b;
-      --card-bg: #ffffff;
-      --text: #333333;
-      --muted: #666666;
-      --border: #cccccc;
+      --success: #28a745;
+      --danger: #dc3545;
+      --bg: #0f172a;
+      --panel-bg: #1e293b;
+      --card-bg: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #475569;
     }
+
+    * { box-sizing: border-box; }
 
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
       background-color: var(--bg);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
+      color: var(--text);
       margin: 0;
-      padding: 20px;
-      box-sizing: border-box;
+      padding: 15px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    .card {
-      background: var(--card-bg);
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-      width: 100%;
-      max-width: 420px;
-    }
-
-    h2 {
-      margin-top: 0;
-      margin-bottom: 20px;
-      color: var(--text);
-      text-align: center;
-    }
-
-    .form-group {
-      margin-bottom: 18px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 6px;
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-
-    input {
-      width: 100%;
-      padding: 12px;
-      box-sizing: border-box;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 16px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    input:focus {
-      border-color: var(--primary);
-    }
-
-    .quick-amounts {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .chip {
-      background: #e9ecef;
-      border: 1px solid #ced4da;
-      color: var(--text);
-      padding: 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      text-align: center;
-      font-weight: 600;
-      font-size: 0.9rem;
-      transition: all 0.2s;
-    }
-
-    .chip:hover {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-
-    .account-preview {
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
-      border-radius: 6px;
-      padding: 12px 15px;
-      margin-bottom: 18px;
-      display: none;
-    }
-
-    .account-preview .row {
+    /* Top Bar */
+    header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 6px;
-      font-size: 0.95rem;
+      align-items: center;
+      background: var(--panel-bg);
+      padding: 12px 20px;
+      border-radius: 10px;
+      margin-bottom: 15px;
     }
 
-    .account-preview .row:last-child {
-      margin-bottom: 0;
+    header h1 { margin: 0; font-size: 1.4rem; color: #fff; }
+    
+    .nav-buttons { display: flex; gap: 10px; }
+    .nav-btn {
+      background: var(--card-bg);
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .nav-btn:hover { background: var(--primary); border-color: var(--primary); }
+
+    /* Main Grid Layout */
+    .pos-container {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 15px;
+      flex: 1;
+      min-height: 0;
     }
 
-    .account-preview .val {
-      font-weight: bold;
-      color: var(--primary);
+    /* Left Side: Product Grid */
+    .catalog-panel {
+      background: var(--panel-bg);
+      border-radius: 10px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    button {
+    .search-bar {
       width: 100%;
-      padding: 14px;
-      background-color: var(--primary);
+      padding: 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 1rem;
+      margin-bottom: 15px;
+    }
+    .search-bar:focus { outline: none; border-color: var(--primary); }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+      overflow-y: auto;
+      padding-right: 5px;
+    }
+
+    .product-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+      user-select: none;
+    }
+    .product-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .product-card:active { transform: translateY(0); }
+    .product-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+    .product-price { color: #38bdf8; font-weight: bold; }
+
+    /* Right Side: Cart Panel */
+    .cart-panel {
+      background: var(--panel-bg);
+      border-radius: 10px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cart-header {
+      font-size: 1.2rem;
+      font-weight: bold;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 15px;
+    }
+
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--card-bg);
+    }
+    .cart-item-details { flex: 1; }
+    .cart-item-title { font-size: 0.9rem; font-weight: 600; }
+    .cart-item-sub { font-size: 0.8rem; color: var(--muted); }
+    .cart-item-controls { display: flex; align-items: center; gap: 8px; }
+    .qty-btn {
+      background: var(--card-bg);
       color: #fff;
       border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .qty-btn:hover { background: var(--primary); }
+
+    /* Totals & Account Section */
+    .cart-summary {
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    .summary-row.total {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    .account-pay-box {
+      margin-top: 10px;
+      background: var(--card-bg);
+      padding: 10px;
       border-radius: 6px;
-      font-size: 16px;
+    }
+    .account-pay-box input {
+      width: 100%;
+      padding: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
-      transition: background-color 0.2s;
+      margin-top: 8px;
+      transition: background 0.2s;
     }
+    .btn-checkout { background: var(--success); color: white; }
+    .btn-checkout:hover { background: #218838; }
+    .btn-clear { background: var(--danger); color: white; }
+    .btn-clear:hover { background: #c82333; }
 
-    button:hover {
-      background-color: var(--primary-hover);
-    }
-
-    button:disabled {
-      background-color: #a0c4ff;
-      cursor: not-allowed;
-    }
-
-    .status-msg {
-      margin-top: 18px;
-      padding: 12px;
-      border-radius: 6px;
-      font-weight: 500;
+    /* Live Toast Notification */
+    #notificationToast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #0284c7;
+      color: white;
+      padding: 14px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       display: none;
-      text-align: center;
-    }
-
-    .status-msg.success {
-      background-color: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
-    }
-
-    .status-msg.error {
-      background-color: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
-
-    .back-link {
-      display: block;
-      text-align: center;
-      margin-top: 15px;
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 0.85rem;
-    }
-
-    .back-link:hover {
-      color: var(--text);
+      z-index: 1000;
+      font-weight: 600;
     }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2>Account Top-Up</h2>
-    <form id="topUpForm">
-      
-      <div class="form-group">
-        <label for="accountId">Account ID / Barcode</label>
-        <input type="text" id="accountId" placeholder="e.g. 10011" required autocomplete="off" />
+  <header>
+    <h1>Staff POS Terminal</h1>
+    <div class="nav-buttons">
+      <a href="topup.html" target="_blank" class="nav-btn">💳 Open Account Top-Up</a>
+      <button class="nav-btn" id="openCustomerView">🖥️ Open Customer View</button>
+    </div>
+  </header>
+
+  <div class="pos-container">
+    <!-- Left Column: Product Selection -->
+    <div class="catalog-panel">
+      <input type="text" id="searchInput" class="search-bar" placeholder="Search product name or scan barcode..." />
+      <div class="products-grid" id="productsGrid">
+        <!-- Live Firestore Products render here -->
+      </div>
+    </div>
+
+    <!-- Right Column: Cart & Checkout -->
+    <div class="cart-panel">
+      <div class="cart-header">Current Register Cart</div>
+      <div class="cart-items" id="cartItems">
+        <div style="color: var(--muted); text-align: center; margin-top: 30px;">Cart is empty</div>
       </div>
 
-      <!-- Live Account Preview Card -->
-      <div class="account-preview" id="accountPreview">
-        <div class="row">
-          <span>Account Holder:</span>
-          <span class="val" id="prevName">---</span>
+      <div class="cart-summary">
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span id="cartSubtotal">$0.00</span>
         </div>
-        <div class="row">
-          <span>Current Balance:</span>
-          <span class="val" id="prevBalance">$0.00</span>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span id="cartTotal">$0.00</span>
         </div>
+
+        <div class="account-pay-box">
+          <label style="font-size: 0.8rem; color: var(--muted);">Customer Account (Optional)</label>
+          <input type="text" id="cartAccountId" placeholder="Enter Account ID / Barcode" />
+          <div id="accountBalanceDisplay" style="font-size: 0.85rem; color: #38bdf8; display: none;"></div>
+        </div>
+
+        <button class="action-btn btn-checkout" id="checkoutBtn">Complete Transaction</button>
+        <button class="action-btn btn-clear" id="clearCartBtn">Clear Cart</button>
       </div>
-
-      <div class="form-group">
-        <label for="amount">Deposit Amount ($)</label>
-        <div class="quick-amounts">
-          <div class="chip" data-val="5">+$5</div>
-          <div class="chip" data-val="10">+$10</div>
-          <div class="chip" data-val="20">+$20</div>
-          <div class="chip" data-val="50">+$50</div>
-        </div>
-        <input type="number" id="amount" step="0.01" placeholder="e.g. 25.00" required />
-      </div>
-
-      <button type="submit" id="submitBtn">Complete Electronic Deposit</button>
-    </form>
-
-    <div id="statusMsg" class="status-msg"></div>
-    <a href="index.html" class="back-link">← Return to Staff POS Terminal</a>
+    </div>
   </div>
+
+  <div id="notificationToast"></div>
 
   <!-- Firebase Modular SDK -->
   <script type="module">
@@ -225,14 +282,13 @@
     import { 
       getFirestore, 
       collection, 
-      query, 
-      where, 
-      getDocs, 
-      getDoc,
-      updateDoc, 
-      doc, 
-      increment,
-      serverTimestamp 
+      onSnapshot,
+      query,
+      where,
+      getDocs,
+      doc,
+      updateDoc,
+      increment
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -247,139 +303,202 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const form = document.getElementById("topUpForm");
-    const accountInput = document.getElementById("accountId");
-    const amountInput = document.getElementById("amount");
-    const submitBtn = document.getElementById("submitBtn");
-    const statusMsg = document.getElementById("statusMsg");
+    // BroadcastChannel inter-tab connection
+    const posChannel = new BroadcastChannel('pos_system_channel');
 
-    const previewBox = document.getElementById("accountPreview");
-    const prevName = document.getElementById("prevName");
-    const prevBalance = document.getElementById("prevBalance");
+    let availableProducts = [];
+    let cart = [];
+    let customerWindowRef = null;
 
-    function showMessage(text, isError = false) {
-      statusMsg.innerText = text;
-      statusMsg.className = `status-msg ${isError ? 'error' : 'success'}`;
-      statusMsg.style.display = "block";
+    // Toast Notification helper
+    function showNotification(msg) {
+      const toast = document.getElementById("notificationToast");
+      toast.innerText = msg;
+      toast.style.display = "block";
+      setTimeout(() => { toast.style.display = "none"; }, 4000);
     }
 
-    // Quick deposit amount chips listener
-    document.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        amountInput.value = parseFloat(chip.dataset.val).toFixed(2);
+    // 1. Listen for updates from Top-Up page
+    posChannel.onmessage = (event) => {
+      const data = event.data;
+      if (data.type === 'ACCOUNT_TOPUP_SUCCESS') {
+        showNotification(`⚡ Live Top-Up: +$${data.amountAdded.toFixed(2)} credited to Account #${data.accountId}`);
+        
+        // Refresh customer account lookup if active
+        const activeAcc = document.getElementById("cartAccountId").value.trim();
+        if (activeAcc && activeAcc === data.accountId) {
+          checkAccountBalance(activeAcc);
+        }
+      }
+    };
+
+    // 2. Open / Sync Customer Display Window
+    document.getElementById("openCustomerView").addEventListener("click", () => {
+      customerWindowRef = window.open("customer_display.html", "POSCustomerDisplay", "width=800,height=600");
+    });
+
+    function syncCustomerDisplay() {
+      posChannel.postMessage({
+        type: 'CART_UPDATE',
+        cart: cart,
+        total: calculateTotal()
       });
-    });
-
-    // Helper: Find account document by field value OR document ID
-    async function findAccountDocs(rawId) {
-      const accountsRef = collection(db, "accounts");
-      
-      // Query 1: Search string match
-      const qString = query(accountsRef, where("accountId", "==", rawId));
-      let snapshot = await getDocs(qString);
-
-      // Query 2: Search numeric match if rawId is a valid number
-      if (snapshot.empty && !isNaN(rawId)) {
-        const qNum = query(accountsRef, where("accountId", "==", Number(rawId)));
-        snapshot = await getDocs(qNum);
-      }
-
-      // Query 3: Search by document ID directly (e.g. accounts/10011)
-      if (snapshot.empty) {
-        const directDocRef = doc(db, "accounts", rawId);
-        const directDocSnap = await getDoc(directDocRef);
-        if (directDocSnap.exists()) {
-          return [{ id: directDocSnap.id, ref: directDocRef, data: directDocSnap.data() }];
-        }
-        return [];
-      }
-
-      return snapshot.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
     }
 
-    // Live Account Lookup
-    let lookupTimeout = null;
-    accountInput.addEventListener('input', () => {
-      clearTimeout(lookupTimeout);
-      const accountId = accountInput.value.trim();
-
-      if (!accountId) {
-        previewBox.style.display = "none";
-        return;
-      }
-
-      lookupTimeout = setTimeout(async () => {
-        try {
-          const docs = await findAccountDocs(accountId);
-
-          if (docs.length > 0) {
-            const data = docs[0].data;
-            prevName.innerText = data.name || data.customerName || `Account #${accountId}`;
-            const bal = parseFloat(data.balance) || 0;
-            prevBalance.innerText = `$${bal.toFixed(2)}`;
-            previewBox.style.display = "block";
-          } else {
-            previewBox.style.display = "none";
-          }
-        } catch (err) {
-          console.error("Lookup error:", err);
-        }
-      }, 300);
+    // Load Live Inventory from Firestore
+    onSnapshot(collection(db, "products"), (snapshot) => {
+      availableProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderProducts(availableProducts);
     });
 
-    // Handle Top-Up Submit
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+    function renderProducts(list) {
+      const grid = document.getElementById("productsGrid");
+      grid.innerHTML = "";
+      list.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "product-card";
+        card.innerHTML = `
+          <div class="product-title">${item.name || "Item"}</div>
+          <div class="product-price">$${(parseFloat(item.price) || 0).toFixed(2)}</div>
+        `;
+        card.onclick = () => addToCart(item);
+        grid.appendChild(card);
+      });
+    }
 
-      const accountId = accountInput.value.trim();
-      const amount = parseFloat(amountInput.value);
+    // Search / Barcode Filter
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      const val = e.target.value.toLowerCase().trim();
+      const filtered = availableProducts.filter(p => 
+        (p.name && p.name.toLowerCase().includes(val)) || 
+        (p.barcode && p.barcode.toString().includes(val))
+      );
+      renderProducts(filtered);
+    });
 
-      if (!accountId || isNaN(amount) || amount <= 0) {
-        showMessage("Please enter a valid Account ID and Deposit Amount.", true);
+    // Cart Management
+    function addToCart(product) {
+      const existing = cart.find(i => i.id === product.id);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        cart.push({ id: product.id, name: product.name, price: parseFloat(product.price) || 0, qty: 1 });
+      }
+      updateCartUI();
+    }
+
+    function updateQty(id, delta) {
+      const item = cart.find(i => i.id === id);
+      if (item) {
+        item.qty += delta;
+        if (item.qty <= 0) {
+          cart = cart.filter(i => i.id !== id);
+        }
+      }
+      updateCartUI();
+    }
+
+    function calculateTotal() {
+      return cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    }
+
+    function updateCartUI() {
+      const container = document.getElementById("cartItems");
+      if (cart.length === 0) {
+        container.innerHTML = `<div style="color: var(--muted); text-align: center; margin-top: 30px;">Cart is empty</div>`;
+      } else {
+        container.innerHTML = "";
+        cart.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "cart-item";
+          div.innerHTML = `
+            <div class="cart-item-details">
+              <div class="cart-item-title">${item.name}</div>
+              <div class="cart-item-sub">$${item.price.toFixed(2)} x ${item.qty}</div>
+            </div>
+            <div class="cart-item-controls">
+              <button class="qty-btn" onclick="window.modQty('${item.id}', -1)">-</button>
+              <span>${item.qty}</span>
+              <button class="qty-btn" onclick="window.modQty('${item.id}', 1)">+</button>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      const total = calculateTotal();
+      document.getElementById("cartSubtotal").innerText = `$${total.toFixed(2)}`;
+      document.getElementById("cartTotal").innerText = `$${total.toFixed(2)}`;
+      
+      syncCustomerDisplay();
+    }
+
+    window.modQty = updateQty;
+
+    document.getElementById("clearCartBtn").onclick = () => {
+      cart = [];
+      updateCartUI();
+    };
+
+    // Account Balance Verification
+    const accInput = document.getElementById("cartAccountId");
+    const balDisplay = document.getElementById("accountBalanceDisplay");
+    
+    async function checkAccountBalance(accId) {
+      if (!accId) { balDisplay.style.display = "none"; return; }
+      const q = query(collection(db, "accounts"), where("accountId", "==", accId));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        balDisplay.innerText = `Balance: $${(parseFloat(data.balance) || 0).toFixed(2)}`;
+        balDisplay.style.display = "block";
+      } else {
+        balDisplay.innerText = "Account not found";
+        balDisplay.style.display = "block";
+      }
+    }
+
+    accInput.addEventListener("change", () => checkAccountBalance(accInput.value.trim()));
+
+    // Checkout Handling
+    document.getElementById("checkoutBtn").onclick = async () => {
+      if (cart.length === 0) {
+        alert("Cart is empty!");
         return;
       }
 
-      submitBtn.disabled = true;
-      submitBtn.innerText = "Processing Deposit...";
-      statusMsg.style.display = "none";
+      const total = calculateTotal();
+      const accId = accInput.value.trim();
 
-      try {
-        const matchingDocs = await findAccountDocs(accountId);
+      if (accId) {
+        // Charge Account
+        const q = query(collection(db, "accounts"), where("accountId", "==", accId));
+        const snap = await getDocs(q);
 
-        if (matchingDocs.length === 0) {
-          showMessage(`Account ID "${accountId}" not found in Firestore!`, true);
+        if (snap.empty) {
+          alert("Invalid Account ID");
           return;
         }
 
-        // Update target document
-        for (const targetDoc of matchingDocs) {
-          const currentBal = parseFloat(targetDoc.data.balance) || 0;
-          
-          await updateDoc(targetDoc.ref, {
-            balance: currentBal + amount,
-            lastTopUp: new Date().toISOString(),
-            updatedAt: serverTimestamp()
-          });
+        const accDoc = snap.docs[0];
+        const currentBal = parseFloat(accDoc.data().balance) || 0;
+
+        if (currentBal < total) {
+          alert(`Insufficient account balance! Available: $${currentBal.toFixed(2)}`);
+          return;
         }
 
-        showMessage(`✅ Deposited $${amount.toFixed(2)} to Account ${accountId}!`);
-        form.reset();
-        previewBox.style.display = "none";
-
-      } catch (error) {
-        console.error("Firestore update failed:", error);
-        
-        // Handle Firestore Security Rules errors
-        if (error.code === 'permission-denied') {
-          showMessage("Permission Denied: Ensure your Firestore database rules allow write access.", true);
-        } else {
-          showMessage("Failed to update Firestore: " + error.message, true);
-        }
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "Complete Electronic Deposit";
+        await updateDoc(doc(db, "accounts", accDoc.id), {
+          balance: increment(-total)
+        });
       }
-    });
+
+      showNotification(`✅ Order completed successfully! Total: $${total.toFixed(2)}`);
+      cart = [];
+      accInput.value = "";
+      balDisplay.style.display = "none";
+      updateCartUI();
+    };
   </script>
 </body>
 </html>
