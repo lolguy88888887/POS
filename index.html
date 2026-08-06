@@ -472,36 +472,39 @@
             });
         }
 
-        function createNewBarcodeProfile() {
-            const name = document.getElementById('new-user-name').value.trim();
-            const initialBalanceInput = document.getElementById('new-user-initial-balance').value.trim();
-            const initialBalance = parseFloat(initialBalanceInput);
+       function createNewBarcodeProfile() {
+    const name = document.getElementById('new-user-name').value.trim();
+    const initialBalanceInput = document.getElementById('new-user-initial-balance').value.trim();
+    const initialBalance = parseFloat(initialBalanceInput);
 
-            if (!name) {
-                fireToast("❌ Please enter an Account Holder Name.");
-                return;
-            }
+    if (!name) {
+        fireToast("❌ Please enter an Account Holder Name.");
+        return;
+    }
 
-            if (isNaN(initialBalance) || initialBalance < 0) {
-                fireToast("❌ Please enter a valid starting balance.");
-                return;
-            }
+    if (isNaN(initialBalance) || initialBalance < 0) {
+        fireToast("❌ Please enter a valid starting balance.");
+        return;
+    }
 
-            const accountIdStr = String(Math.floor(10000 + Math.random() * 90000));
+    // 1. Generate the account ID string (or get custom input)
+    const generatedAccountId = String(Math.floor(10000 + Math.random() * 90000));
 
-            db.collection('accounts').doc(accountIdStr).set({
-                name: name,
-                balance: initialBalance,
-                createdAt: Date.now()
-            }).then(() => {
-                fireToast(`✅ Profile Created! ID: ${accountIdStr} (Name: ${name})`);
-                document.getElementById('new-user-name').value = '';
-                document.getElementById('new-user-initial-balance').value = '50.00';
-            }).catch(err => {
-                console.error("Profile Creation Error:", err);
-                fireToast("❌ Profile Creation Failed: " + err.message);
-            });
-        }
+    // 2. Make sure 'accountId' is explicitly included in the object payload
+    db.collection('accounts').add({
+        accountId: generatedAccountId, // <-- Crucial: This ensures accountId isn't undefined!
+        name: name,
+        balance: initialBalance,
+        createdAt: Date.now()
+    }).then((docRef) => {
+        fireToast(`✅ Profile Created! ID: ${generatedAccountId} (Name: ${name})`);
+        document.getElementById('new-user-name').value = '';
+        document.getElementById('new-user-initial-balance').value = '50.00';
+    }).catch(err => {
+        console.error("Profile Creation Error:", err);
+        fireToast("❌ Profile Creation Failed: " + err.message);
+    });
+}
 
         function processDirectIdCharge() {
     if (!typedAccountId) {
