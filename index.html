@@ -9,9 +9,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-    <!-- Firebase Core & Realtime Database SDKs -->
+    <!-- Firebase Core & Firestore SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
@@ -28,7 +27,7 @@
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
-const rtdb = firebase.database();
+      const db = firebase.firestore();
     </script>
 
     <style>
@@ -110,7 +109,6 @@ const rtdb = firebase.database();
         #toast { position: fixed; bottom: 25px; right: 25px; padding: 15px 25px; background: #334155; color: white; border-radius: 8px; display: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); z-index: 99999; font-weight: 500; border: 1px solid #475569; }
         .display-link-box { display: flex; align-items: center; justify-content: space-between; background: #1e3a8a; color: white; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; border: 1px solid #2563eb; }
 
-        /* Login Screen Specific Styles */
         .login-wrapper { max-width: 420px; margin: 60px auto 0 auto; }
         .login-pin-display { background: #0f172a; border: 1px solid var(--card-border); color: #f8fafc; font-size: 2rem; font-weight: bold; text-align: center; padding: 12px; border-radius: 8px; font-family: monospace; letter-spacing: 12px; margin-bottom: 15px; }
         .staff-badge { background: #1e3a8a; color: #93c5fd; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; }
@@ -123,7 +121,7 @@ const rtdb = firebase.database();
         <div class="nav-links">
             <span id="logged-staff-name" class="staff-badge">👤 Staff: Cashier</span>
             <button class="nav-btn active" onclick="switchView('register-view', this)">POS Register</button>
-           <button onclick="location.href='topup.html'">Top up page</button>
+            <button class="nav-btn" onclick="switchView('topup-view', this)">Top up page</button>
             <button class="nav-btn" onclick="switchView('customer-gen-view', this)">+ Create Profile</button>
             <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Manage Products</button>
             <button class="nav-btn" onclick="logoutStaff()" style="border-color: var(--danger); color: var(--danger);">🔒 Lock Terminal</button>
@@ -345,6 +343,7 @@ const rtdb = firebase.database();
         let activeInvoiceId = null;
         let modalQrInstance = null;
         let typedAccountId = "";
+        let transactionUnsubscribe = null;
 
         let barcodeBuffer = "";
         let lastKeyTime = Date.now();
@@ -410,21 +409,21 @@ const rtdb = firebase.database();
             if(btnElement) btnElement.classList.add('active');
         }
 
-        // Live Product Sync from Firebase
-        db.ref('products').on('value', (snapshot) => {
-            const val = snapshot.val();
+        // Live Product Sync from Firestore
+        db.collection('products').onSnapshot((snapshot) => {
             products = [];
-            if (val) {
-                Object.keys(val).forEach(key => {
-                    products.push({ id: key, ...val[key] });
+            if (!snapshot.empty) {
+                snapshot.forEach(doc => {
+                    products.push({ id: doc.id, ...doc.data() });
                 });
             } else {
-                const defaultSeed = {
-                    p1: { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
-                    p2: { barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
-                    p3: { barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
-                };
-                db.ref('products').set(defaultSeed);
+                // Seed Initial Products into Firestore if collection is empty
+                const defaultSeed = [
+                    { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
+                    { barcode: "222", icon: "🍕", name: "Pizza Slice", price: 5.50 },
+                    { barcode: "333", icon: "🍩", name: "Glazed Donut", price: 2.25 }
+                ];
+                defaultSeed.forEach(p => db.collection('products').add(p));
             }
             renderProductGrid();
             buildInventoryManagementTables();
@@ -446,15 +445,15 @@ const rtdb = firebase.database();
             }
 
             const codeStr = String(rawCode);
-          db.collection("accounts").doc(codeStr)
-            
-            accountRef.once('value').then((snapshot) => {
-                if (!snapshot.exists()) {
-                    fireToast(`❌ Account #${codeStr} does not exist in Firebase.`);
+            const accountRef = db.collection("accounts").doc(codeStr);
+
+            accountRef.get().then((doc) => {
+                if (!doc.exists) {
+                    fireToast(`❌ Account #${codeStr} does not exist.`);
                     return;
                 }
 
-                const data = snapshot.val();
+                const data = doc.data();
                 const currentBalance = parseFloat(data.balance) || 0;
                 const newBalance = currentBalance + amount;
                 const accountName = data.name || data.displayName || `Account (${codeStr})`;
@@ -490,7 +489,7 @@ const rtdb = firebase.database();
 
             const accountIdStr = String(Math.floor(10000 + Math.random() * 90000));
 
-            db.ref('accounts').child(accountIdStr).set({
+            db.collection('accounts').doc(accountIdStr).set({
                 name: name,
                 balance: initialBalance,
                 createdAt: Date.now()
@@ -505,55 +504,50 @@ const rtdb = firebase.database();
         }
 
         function processDirectIdCharge() {
-    if (!typedAccountId) {
-        fireToast("❌ Please enter or scan an Account ID.");
-        return;
-    }
+            if (!typedAccountId) {
+                fireToast("❌ Please enter or scan an Account ID.");
+                return;
+            }
 
-    const accountRef = db.collection("accounts").doc(String(typedAccountId));
+            const accountRef = db.collection("accounts").doc(String(typedAccountId));
 
-    accountRef.get().then((doc) => {
+            accountRef.get().then((doc) => {
+                if (!doc.exists) {
+                    fireToast(`❌ Account #${typedAccountId} not found.`);
+                    return;
+                }
 
-        if (!doc.exists) {
-            fireToast(`❌ Account #${typedAccountId} not found.`);
-            return;
+                const customer = doc.data();
+                const currentBal = Number(customer.balance) || 0;
+
+                if (currentBal < totalDue) {
+                    fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
+                    return;
+                }
+
+                const newBalance = currentBal - totalDue;
+
+                accountRef.update({
+                    balance: newBalance,
+                    lastPurchase: new Date().toISOString()
+                }).then(() => {
+                    completeCheckoutSuccess(
+                        customer.name || "Customer",
+                        totalDue
+                    );
+                });
+
+            }).catch((error) => {
+                console.error(error);
+                fireToast("❌ Payment failed: " + error.message);
+            });
         }
-
-        const customer = doc.data();
-
-        const currentBal = Number(customer.balance) || 0;
-
-        if (currentBal < totalDue) {
-            fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
-            return;
-        }
-
-        const newBalance = currentBal - totalDue;
-
-        accountRef.update({
-            balance: newBalance,
-            lastPurchase: new Date().toISOString()
-        }).then(() => {
-
-            completeCheckoutSuccess(
-                customer.name || "Customer",
-                totalDue
-            );
-
-        });
-
-    }).catch((error) => {
-        console.error(error);
-        fireToast("❌ Payment failed: " + error.message);
-    });
-}
 
         // USB Scanner & Keypress Listener
         window.addEventListener("keydown", function(e) {
             const currentTime = Date.now();
             if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return; 
 
-            // Handle PIN input if locked
             if (!activeStaffUser) {
                 if (/[0-9]/.test(e.key)) pressLoginPin(e.key);
                 else if (e.key === "Enter") attemptLogin();
@@ -655,12 +649,14 @@ const rtdb = firebase.database();
                 });
             }
 
-            const paymentsRef = db.ref("transactions").child(activeInvoiceId);
-            paymentsRef.on("value", (snapshot) => {
-                const tx = snapshot.val();
-                if (tx && tx.status === "COMPLETED") {
-                    completeCheckoutSuccess(tx.senderName || "Customer", totalDue);
-                    paymentsRef.off(); 
+            // Real-time Firestore transaction status snapshot
+            const paymentsRef = db.collection("transactions").doc(activeInvoiceId);
+            transactionUnsubscribe = paymentsRef.onSnapshot((doc) => {
+                if (doc.exists) {
+                    const tx = doc.data();
+                    if (tx && tx.status === "COMPLETED") {
+                        completeCheckoutSuccess(tx.senderName || "Customer", totalDue);
+                    }
                 }
             });
 
@@ -674,8 +670,9 @@ const rtdb = firebase.database();
 
         function closeCheckoutModal() {
             document.getElementById('checkout-modal').style.display = 'none';
-            if (activeInvoiceId) {
-                db.ref("transactions").child(activeInvoiceId).off();
+            if (transactionUnsubscribe) {
+                transactionUnsubscribe();
+                transactionUnsubscribe = null;
             }
             activeInvoiceId = null;
             typedAccountId = "";
@@ -785,12 +782,12 @@ const rtdb = firebase.database();
             const payload = { name, icon, price, barcode };
 
             if (id) {
-                db.ref('products').child(id).update(payload).then(() => {
+                db.collection('products').doc(id).update(payload).then(() => {
                     fireToast(`✅ Updated Product: ${name}`);
                     resetProductForm();
                 });
             } else {
-                db.ref('products').push(payload).then(() => {
+                db.collection('products').add(payload).then(() => {
                     fireToast(`✅ Created Product: ${name}`);
                     resetProductForm();
                 });
@@ -826,7 +823,7 @@ const rtdb = firebase.database();
 
         function deleteProduct(id) {
             if (confirm("Are you sure you want to remove this product from the database?")) {
-                db.ref('products').child(id).remove().then(() => {
+                db.collection('products').doc(id).delete().then(() => {
                     fireToast("🗑️ Product deleted successfully.");
                 });
             }
