@@ -12,6 +12,7 @@
     <!-- Firebase Core & Realtime Database SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
       const firebaseConfig = {
@@ -27,7 +28,8 @@
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
-      const db = firebase.database();
+     const firestore = firebase.firestore();
+const rtdb = firebase.database();
     </script>
 
     <style>
@@ -122,7 +124,7 @@
         <div class="nav-links">
             <span id="logged-staff-name" class="staff-badge">👤 Staff: Cashier</span>
             <button class="nav-btn active" onclick="switchView('register-view', this)">POS Register</button>
-            <button class="nav-btn" onclick="switchView('topup-view', this)">Top-Up Balance</button>
+           <button onclick="location.href='topup.html'">Top up page</button>
             <button class="nav-btn" onclick="switchView('customer-gen-view', this)">+ Create Profile</button>
             <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Manage Products</button>
             <button class="nav-btn" onclick="logoutStaff()" style="border-color: var(--danger); color: var(--danger);">🔒 Lock Terminal</button>
@@ -504,40 +506,48 @@
         }
 
         function processDirectIdCharge() {
-            if (!typedAccountId) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
+    if (!typedAccountId) {
+        fireToast("❌ Please enter or scan an Account ID.");
+        return;
+    }
 
-            const accountRef = db.ref('accounts').child(String(typedAccountId));
+    const accountRef = db.collection("accounts").doc(String(typedAccountId));
 
-            accountRef.once('value').then((snapshot) => {
-                if (!snapshot.exists()) {
-                    fireToast(`❌ Account ID #${typedAccountId} not found.`);
-                    return;
-                }
+    accountRef.get().then((doc) => {
 
-                const customer = snapshot.val();
-                const currentBal = parseFloat(customer.balance) || 0;
-
-                if (currentBal < totalDue) {
-                    fireToast(`❌ Insufficient funds! Current Balance: $${currentBal.toFixed(2)}`);
-                    return;
-                }
-
-                const newBalance = currentBal - totalDue;
-                const customerName = customer.name || customer.displayName || `User #${typedAccountId}`;
-
-                accountRef.update({ 
-                    balance: newBalance 
-                }).then(() => {
-                    completeCheckoutSuccess(customerName, totalDue);
-                });
-            }).catch((err) => {
-                console.error(err);
-                fireToast("❌ Charge Failed: " + err.message);
-            });
+        if (!doc.exists) {
+            fireToast(`❌ Account #${typedAccountId} not found.`);
+            return;
         }
+
+        const customer = doc.data();
+
+        const currentBal = Number(customer.balance) || 0;
+
+        if (currentBal < totalDue) {
+            fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
+            return;
+        }
+
+        const newBalance = currentBal - totalDue;
+
+        accountRef.update({
+            balance: newBalance,
+            lastPurchase: new Date().toISOString()
+        }).then(() => {
+
+            completeCheckoutSuccess(
+                customer.name || "Customer",
+                totalDue
+            );
+
+        });
+
+    }).catch((error) => {
+        console.error(error);
+        fireToast("❌ Payment failed: " + error.message);
+    });
+}
 
         // USB Scanner & Keypress Listener
         window.addEventListener("keydown", function(e) {
