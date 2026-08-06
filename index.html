@@ -504,44 +504,48 @@
         }
 
         function processDirectIdCharge() {
-            if (!typedAccountId) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
+    if (!typedAccountId) {
+        fireToast("❌ Please enter or scan an Account ID.");
+        return;
+    }
 
-            const accountRef = db.collection("accounts").doc(String(typedAccountId));
+    const searchInput = String(typedAccountId).trim();
 
-            accountRef.get().then((doc) => {
-                if (!doc.exists) {
-                    fireToast(`❌ Account #${typedAccountId} not found.`);
-                    return;
-                }
+    // Query Firestore where 'accountId' field matches the scanned/typed input
+    db.collection("accounts")
+      .where("accountId", "==", searchInput)
+      .get()
+      .then((querySnapshot) => {
+          if (querySnapshot.empty) {
+              fireToast(`❌ Account "${searchInput}" not found.`);
+              return;
+          }
 
-                const customer = doc.data();
-                const currentBal = Number(customer.balance) || 0;
+          // Get the first matching document
+          const doc = querySnapshot.docs[0];
+          const customer = doc.data();
+          const currentBal = Number(customer.balance) || 0;
 
-                if (currentBal < totalDue) {
-                    fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
-                    return;
-                }
+          if (currentBal < totalDue) {
+              fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
+              return;
+          }
 
-                const newBalance = currentBal - totalDue;
+          const newBalance = currentBal - totalDue;
 
-                accountRef.update({
-                    balance: newBalance,
-                    lastPurchase: new Date().toISOString()
-                }).then(() => {
-                    completeCheckoutSuccess(
-                        customer.name || "Customer",
-                        totalDue
-                    );
-                });
-
-            }).catch((error) => {
-                console.error(error);
-                fireToast("❌ Payment failed: " + error.message);
-            });
-        }
+          // Update using the document's actual Firestore ID
+          doc.ref.update({
+              balance: newBalance,
+              lastPurchase: new Date().toISOString()
+          }).then(() => {
+              completeCheckoutSuccess(customer.name || customer.accountId || "Customer", totalDue);
+          });
+      })
+      .catch((error) => {
+          console.error(error);
+          fireToast("❌ Payment failed: " + error.message);
+      });
+}
 
         // USB Scanner & Keypress Listener
         window.addEventListener("keydown", function(e) {
