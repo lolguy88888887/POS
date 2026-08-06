@@ -28,7 +28,6 @@
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
-     const firestore = firebase.firestore();
 const rtdb = firebase.database();
     </script>
 
@@ -447,8 +446,8 @@ const rtdb = firebase.database();
             }
 
             const codeStr = String(rawCode);
-            const accountRef = db.ref('accounts').child(codeStr);
-
+          db.collection("accounts").doc(codeStr)
+            
             accountRef.once('value').then((snapshot) => {
                 if (!snapshot.exists()) {
                     fireToast(`❌ Account #${codeStr} does not exist in Firebase.`);
