@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan POS Merchant QR</title>
+    <title>Scan POS Merchant QR / Barcode</title>
     <!-- HTML5 QR Code Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -32,7 +32,6 @@
 
         .btn { padding: 12px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
         .btn-danger { background: var(--danger); color: white; }
-        .btn-primary { background: var(--primary); color: white; width: 100%; }
 
         /* Scanner Container */
         #reader { width: 100%; border-radius: 12px; overflow: hidden; background: black; margin-bottom: 15px; }
@@ -47,14 +46,14 @@
         <!-- HEADER BAR -->
         <div class="header-bar" id="app-header">
             <span id="header-user-display">Loading User...</span>
-            <a href="index.html" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.75rem;">← Back to Wallet</a>
+            <a href="index.html" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.75rem;">← Back</a>
         </div>
 
         <!-- SCAN PAGE VIEW -->
         <div class="page-card">
             <div class="page-title">📷 Scan POS Merchant QR</div>
             <div id="reader"></div>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Position the cashier's invoice QR code inside the frame to pay instantly.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Point your camera at the cashier's active checkout code to authorize payment.</p>
         </div>
 
     </div>
@@ -83,6 +82,28 @@
 
         let html5QrcodeScanner = null;
         window.currentAccount = null;
+        let isProcessing = false;
+
+        // Web Audio API Beep Generator (No external audio file needed!)
+        function playBeepSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = "sine";
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Pitch (Hz)
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.15); // Duration: 150ms
+            } catch (e) {
+                console.log("Audio Context not supported or blocked", e);
+            }
+        }
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -126,9 +147,13 @@
         }
 
         async function onScanSuccess(decodedText) {
+            if (isProcessing) return; // Prevent double-triggering while processing
+
             try {
                 const parsedData = JSON.parse(decodedText);
                 if (parsedData.type === "POS_INVOICE") {
+                    isProcessing = true;
+                    playBeepSound(); // 🔊 Instant audio confirmation beep!
                     stopCameraScanner();
                     await processInvoicePayment(parsedData.invoiceId, parsedData.amount);
                 } else {
@@ -140,28 +165,32 @@
         }
 
         function onScanFailure(error) {
-            // Ignored while searching for frames
+            // Ignored while searching for valid frames
         }
 
         async function processInvoicePayment(invoiceId, amount) {
             if (!window.currentAccount) {
                 fireToast("❌ Account not loaded.");
+                isProcessing = false;
                 return;
             }
 
             if (window.currentAccount.balance < amount) {
                 fireToast(`❌ Insufficient funds! Balance: $${window.currentAccount.balance.toFixed(2)}`);
-                setTimeout(() => { startCameraScanner(); }, 3000);
+                setTimeout(() => { 
+                    isProcessing = false;
+                    startCameraScanner(); 
+                }, 3000);
                 return;
             }
 
             try {
-                // 1. Deduct balance from customer account
+                // 1. Deduct balance from customer account in Firestore
                 await updateDoc(doc(db, "accounts", window.currentAccount.uid), {
                     balance: increment(-amount)
                 });
 
-                // 2. Mark the transaction document as COMPLETED so the POS terminal instantly detects it
+                // 2. Mark the transaction document as COMPLETED so the POS register instantly detects it
                 await setDoc(doc(db, "transactions", invoiceId), {
                     status: "COMPLETED",
                     invoiceId: invoiceId,
@@ -178,7 +207,10 @@
 
             } catch (err) {
                 fireToast("❌ Payment failed: " + err.message);
-                setTimeout(() => { startCameraScanner(); }, 3000);
+                setTimeout(() => { 
+                    isProcessing = false;
+                    startCameraScanner(); 
+                }, 3000);
             }
         }
 
