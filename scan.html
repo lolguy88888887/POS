@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POS Counter - Wallet QR Scanner</title>
-    <!-- HTML5 QR Code Scanner Library -->
+    <title>POS Scanner Terminal</title>
+    <!-- HTML5 QR Code Library -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
-    <!-- Firebase Core & Firestore SDKs -->
+    <!-- Firebase SDK (Compat Version) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -50,15 +50,9 @@
         .page-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 25px 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
         .page-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .input-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; }
-        input { width: 100%; padding: 12px; background: #0f172a; border: 1px solid var(--card-border); color: white; border-radius: 8px; font-size: 1rem; outline: none; }
-        
-        .btn { padding: 12px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: var(--danger); color: white; width: auto; padding: 6px 12px; font-size: 0.75rem; }
+        .amount-display { font-size: 2.5rem; font-weight: 800; color: var(--primary); margin: 10px 0; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; background: #064e3b; color: #a7f3d0; border: 1px solid #047857; }
 
-        /* Scanner Container */
         #pos-reader { width: 100%; border-radius: 12px; overflow: hidden; background: black; margin-bottom: 15px; }
 
         #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #334155; color: white; padding: 12px 20px; border-radius: 30px; border: 1px solid #475569; font-weight: bold; display: none; z-index: 10000; box-shadow: 0 8px 16px rgba(0,0,0,0.4); text-align: center; width: 90%; max-width: 350px; }
@@ -67,35 +61,32 @@
 <body>
 
     <div class="app-container">
-
-        <!-- HEADER BAR -->
         <div class="header-bar">
-            <span>🖥️ POS Scanner Terminal</span>
-            <a href="index.html" class="btn btn-danger">← Back to POS</a>
+            <span>📷 Dedicated POS Camera Scanner</span>
+            <a href="index.html" style="color: var(--danger); text-decoration: none; font-weight: bold;">← Back to POS</a>
         </div>
 
-        <!-- CONFIG CARD FOR AMOUNT DUE -->
+        <!-- POS-ООС ИРСЭН ТӨЛБӨРИЙН ДҮН -->
         <div class="page-card">
-            <div class="page-title">💳 Checkout Charge Amount</div>
-            <div class="input-group">
-                <label>Amount Due ($ USD)</label>
-                <input type="number" id="charge-amount" placeholder="0.00" step="0.01" value="10.00">
-            </div>
+            <div class="page-title">Active POS Checkout Charge</div>
+            <div class="amount-display" id="display-due-amount">$0.00</div>
+            <div class="status-badge" id="scanner-status-text">⌛ Waiting for POS Invoice...</div>
         </div>
 
-        <!-- CAMERA SCANNER CARD -->
+        <!-- КАМЕР УНШИХ ХЭСЭГ -->
         <div class="page-card">
-            <div class="page-title">📷 Scan Customer Wallet QR</div>
+            <div class="page-title">Scan Customer Wallet QR</div>
             <div id="pos-reader"></div>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Point camera at customer's wallet QR to instantly deduct payment with a beep.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Show customer's wallet QR code to auto-deduct funds.</p>
         </div>
-
     </div>
 
     <div id="toast">Notification</div>
 
     <script>
         let posScanner = null;
+        let activeInvoiceId = null;
+        let activeAmount = 0.00;
         let isProcessing = false;
 
         function fireToast(msg) {
@@ -105,7 +96,7 @@
             setTimeout(() => { toast.style.display = 'none'; }, 3500);
         }
 
-        // Web Audio API Beep Generator
+        // Unшуулахад гарах Beep дуу
         function playBeepSound() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -113,20 +104,44 @@
                 const gainNode = audioCtx.createGain();
 
                 oscillator.type = "sine";
-                oscillator.frequency.setValueAtTime(850, audioCtx.currentTime); // Pitch
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
+                oscillator.frequency.setValueAtTime(850, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
 
                 oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.15); // Duration: 150ms
-            } catch (e) {
-                console.log("Audio Context blocked", e);
-            }
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch (e) { console.log(e); }
         }
 
-        // Initialize Camera Scanner
+        // POS дээр Checkout хийхэд Firestore дээр үүсэх Invoice-ийг сосож чаддаг listener
+        db.collection("active_checkouts").doc("current_checkout").onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                if (data.status === "PENDING" && data.amount > 0) {
+                    activeInvoiceId = data.invoiceId;
+                    activeAmount = data.amount;
+                    document.getElementById('display-due-amount').innerText = `$${activeAmount.toFixed(2)}`;
+                    document.getElementById('scanner-status-text').innerText = "🔊 Ready to Scan Wallet QR";
+                    document.getElementById('scanner-status-text').style.background = "#064e3b";
+                } else {
+                    resetCheckoutState();
+                }
+            } else {
+                resetCheckoutState();
+            }
+        });
+
+        function resetCheckoutState() {
+            activeInvoiceId = null;
+            activeAmount = 0.00;
+            document.getElementById('display-due-amount').innerText = "$0.00";
+            document.getElementById('scanner-status-text').innerText = "⌛ Waiting for POS Invoice...";
+            document.getElementById('scanner-status-text').style.background = "#334155";
+        }
+
+        // Камер ажиллуулах
         function startScanner() {
             posScanner = new Html5Qrcode("pos-reader");
             posScanner.start(
@@ -135,46 +150,37 @@
                 async (decodedText) => {
                     if (isProcessing) return;
 
+                    if (!activeInvoiceId || activeAmount <= 0) {
+                        fireToast("❌ No active payment pending on POS!");
+                        return;
+                    }
+
                     try {
                         const parsed = JSON.parse(decodedText);
-                        // Looks for the customer's wallet QR payload
                         if (parsed.type === "CUSTOMER_WALLET_PAY" && parsed.accountId) {
                             isProcessing = true;
-                            playBeepSound(); // 🔊 Success Beep!
-                            fireToast(`🔍 Scanned Account: #${parsed.accountId}`);
+                            playBeepSound(); // 🔊 BEEP!
+                            fireToast(`🔍 Processing Account #${parsed.accountId}...`);
 
-                            const amountDue = parseFloat(document.getElementById('charge-amount').value);
-                            if (isNaN(amountDue) || amountDue <= 0) {
-                                fireToast("❌ Please enter a valid charge amount.");
-                                isProcessing = false;
-                                return;
-                            }
-
-                            // Stop scanner temporarily and process charge
-                            await posScanner.stop();
-                            posScanner = null;
-
-                            await chargeAccount(parsed.accountId, amountDue);
+                            await chargeCustomerAccount(parsed.accountId, activeAmount);
                         }
                     } catch (err) {
-                        // Not a valid JSON wallet QR code
+                        // QR биш бол өөр зүйл хийхгүй
                     }
                 },
                 (error) => {}
-            ).catch(err => {
-                fireToast("❌ Camera access denied or unavailable.");
-            });
+            ).catch(err => console.error(err));
         }
 
-        async function chargeAccount(accountId, amount) {
+        async function chargeCustomerAccount(accountId, amount) {
             try {
-                const accountsRef = db.collection("accounts");
-                const q = accountsRef.where("accountId", "==", accountId);
-                const querySnapshot = await getDocs ? await getDocs(q) : await q.get();
+                const querySnapshot = await db.collection("accounts")
+                    .where("accountId", "==", accountId)
+                    .get();
 
                 if (querySnapshot.empty) {
-                    fireToast(`❌ Account #${accountId} not found in database.`);
-                    restartScannerFlow();
+                    fireToast(`❌ Account #${accountId} not found.`);
+                    isProcessing = false;
                     return;
                 }
 
@@ -183,40 +189,37 @@
                 const currentBal = Number(customerData.balance) || 0;
 
                 if (currentBal < amount) {
-                    fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
-                    restartScannerFlow();
+                    fireToast(`❌ Insufficient Funds! Balance: $${currentBal.toFixed(2)}`);
+                    isProcessing = false;
                     return;
                 }
 
                 const newBalance = currentBal - amount;
 
-                // Update Firestore balance
+                // 1. Данснаас нь мөнгийг хасна
                 await customerDoc.ref.update({
                     balance: newBalance,
                     lastPurchase: new Date().toISOString()
                 });
 
-                fireToast(`🎉 Successfully charged $${amount.toFixed(2)} to ${customerData.name}!`);
-                
-                setTimeout(() => {
-                    restartScannerFlow();
-                }, 3000);
+                // 2. POS системд Төлбөр амжилттай болсныг мэдээлнэ
+                await db.collection("active_checkouts").doc("current_checkout").set({
+                    status: "COMPLETED",
+                    invoiceId: activeInvoiceId,
+                    amount: amount,
+                    customerName: customerData.name || accountId
+                });
+
+                fireToast(`🎉 Paid $${amount.toFixed(2)} from ${customerData.name}!`);
+                setTimeout(() => { isProcessing = false; }, 2000);
 
             } catch (err) {
-                fireToast("❌ Transaction error: " + err.message);
-                restartScannerFlow();
+                fireToast("❌ Charge error: " + err.message);
+                isProcessing = false;
             }
         }
 
-        function restartScannerFlow() {
-            isProcessing = false;
-            startScanner();
-        }
-
-        // Start scanner on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            startScanner();
-        });
+        window.addEventListener('DOMContentLoaded', startScanner);
     </script>
 </body>
 </html>
