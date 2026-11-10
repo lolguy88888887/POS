@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan POS Merchant QR</title>
+    <!-- HTML5 QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --dark-bg: #0f172a;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--dark-bg); color: var(--text-main); display: flex; justify-content: center; min-height: 100vh; padding: 20px; }
+
+        .app-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 20px; }
+
+        /* Header Navigation Bar */
+        .header-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 12px 15px; border-radius: 12px; border: 1px solid var(--card-border); font-size: 0.85rem; }
+        
+        .page-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 25px 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        .page-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .btn { padding: 12px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 0.85rem; text-transform: uppercase; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+
+        /* Scanner Container */
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: black; margin-bottom: 15px; }
+
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #334155; color: white; padding: 12px 20px; border-radius: 30px; border: 1px solid #475569; font-weight: bold; display: none; z-index: 10000; box-shadow: 0 8px 16px rgba(0,0,0,0.4); text-align: center; width: 90%; max-width: 350px; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+
+        <!-- HEADER BAR -->
+        <div class="header-bar" id="app-header">
+            <span id="header-user-display">Loading User...</span>
+            <a href="index.html" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.75rem;">← Back to Wallet</a>
+        </div>
+
+        <!-- SCAN PAGE VIEW -->
+        <div class="page-card">
+            <div class="page-title">📷 Scan POS Merchant QR</div>
+            <div id="reader"></div>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Position the cashier's invoice QR code inside the frame to pay instantly.</p>
+        </div>
+
+    </div>
+
+    <div id="toast">Notification</div>
+
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, updateDoc, setDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA03_nm4Zk3RXmgIxKbxXP-pEGWnzmsQOE",
+            authDomain: "pos21-8f88f.firebaseapp.com",
+            databaseURL: "https://pos21-8f88f-default-rtdb.firebaseio.com",
+            projectId: "pos21-8f88f",
+            storageBucket: "pos21-8f88f.firebasestorage.app",
+            messagingSenderId: "49870857272",
+            appId: "1:49870857272:web:d349580c3d5ebb6f93f2cd"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let html5QrcodeScanner = null;
+        window.currentAccount = null;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                const accountRef = doc(db, "accounts", user.uid);
+                const docSnap = await getDoc(accountRef);
+                if (docSnap.exists()) {
+                    window.currentAccount = docSnap.data();
+                    window.currentAccount.uid = user.uid;
+                    document.getElementById('header-user-display').innerText = window.currentAccount.name;
+                    startCameraScanner();
+                } else {
+                    fireToast("⚠️ Account profile record missing.");
+                }
+            } else {
+                fireToast("❌ Please log into your wallet first.");
+                setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+            }
+        });
+
+        function startCameraScanner() {
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                fireToast("❌ Camera access denied or unavailable.");
+            });
+        }
+
+        function stopCameraScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                    html5QrcodeScanner = null;
+                }).catch(() => {
+                    html5QrcodeScanner = null;
+                });
+            }
+        }
+
+        async function onScanSuccess(decodedText) {
+            try {
+                const parsedData = JSON.parse(decodedText);
+                if (parsedData.type === "POS_INVOICE") {
+                    stopCameraScanner();
+                    await processInvoicePayment(parsedData.invoiceId, parsedData.amount);
+                } else {
+                    fireToast("❌ Invalid QR code format.");
+                }
+            } catch (err) {
+                fireToast("❌ Unrecognized QR Code.");
+            }
+        }
+
+        function onScanFailure(error) {
+            // Ignored while searching for frames
+        }
+
+        async function processInvoicePayment(invoiceId, amount) {
+            if (!window.currentAccount) {
+                fireToast("❌ Account not loaded.");
+                return;
+            }
+
+            if (window.currentAccount.balance < amount) {
+                fireToast(`❌ Insufficient funds! Balance: $${window.currentAccount.balance.toFixed(2)}`);
+                setTimeout(() => { startCameraScanner(); }, 3000);
+                return;
+            }
+
+            try {
+                // 1. Deduct balance from customer account
+                await updateDoc(doc(db, "accounts", window.currentAccount.uid), {
+                    balance: increment(-amount)
+                });
+
+                // 2. Mark the transaction document as COMPLETED so the POS terminal instantly detects it
+                await setDoc(doc(db, "transactions", invoiceId), {
+                    status: "COMPLETED",
+                    invoiceId: invoiceId,
+                    senderId: window.currentAccount.accountId,
+                    senderName: window.currentAccount.name,
+                    amount: amount,
+                    timestamp: serverTimestamp()
+                }, { merge: true });
+
+                fireToast(`🎉 Payment of $${amount.toFixed(2)} successful!`);
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 2000);
+
+            } catch (err) {
+                fireToast("❌ Payment failed: " + err.message);
+                setTimeout(() => { startCameraScanner(); }, 3000);
+            }
+        }
+
+        function fireToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3500);
+        }
+    </script>
+</body>
+</html>
