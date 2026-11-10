@@ -719,30 +719,57 @@
             closeCheckoutModal();
         }
 
-        function openCheckoutModal() {
-            if (cart.length === 0) {
-                fireToast("❌ Cart is empty.");
-                return;
+       function openCheckoutModal() {
+    if (cart.length === 0) {
+        fireToast("❌ Cart is empty.");
+        return;
+    }
+
+    typedAccountId = "";
+    updateNumpadUI();
+
+    activeInvoiceId = "INV_" + Date.now();
+    document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
+    
+    // Модал цонхыг нээх
+    const modal = document.getElementById('checkout-modal');
+    if (modal) modal.style.display = 'flex';
+
+    // 1. Firestore руу идэвхитэй checkout дүнг шууд бичих (Энэ нь pos_scan.html рүү шууд утгыг дамжуулна)
+    db.collection("active_checkouts").doc("current_checkout").set({
+        status: "PENDING",
+        invoiceId: activeInvoiceId,
+        amount: totalDue,
+        createdAt: Date.now()
+    }).then(() => {
+        console.log("Checkout broadcasted to scanner:", totalDue);
+    }).catch((err) => {
+        console.error("Error broadcasting checkout:", err);
+    });
+
+    // 2. Scanner хуудас төлбөрийг хийж дуустал (COMPLETED болтол) хүлээх listener
+    if (transactionUnsubscribe) {
+        transactionUnsubscribe();
+    }
+
+    transactionUnsubscribe = db.collection("active_checkouts").doc("current_checkout")
+        .onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                if (data.status === "COMPLETED" && data.invoiceId === activeInvoiceId) {
+                    completeCheckoutSuccess(data.customerName || "Customer", totalDue);
+                }
             }
+        });
 
-            typedAccountId = "";
-            updateNumpadUI();
-
-            document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
-            document.getElementById('checkout-modal').style.display = 'flex';
-
-            // Start the camera scanner instantly when checkout modal opens
-            setTimeout(() => {
-                startStaffCustomerScanner();
-            }, 300);
-
-            displayChannel.postMessage({
-                type: 'SHOW_INVOICE_QR',
-                amount: totalDue,
-                cart: cart
-            });
-        }
-
+    // Dual screen рүү мөн мэдээлэл явуулах
+    displayChannel.postMessage({
+        type: 'SHOW_INVOICE_QR',
+        invoiceId: activeInvoiceId,
+        amount: totalDue,
+        cart: cart
+    });
+}
         function closeCheckoutModal() {
             stopStaffCustomerScanner();
             document.getElementById('checkout-modal').style.display = 'none';
