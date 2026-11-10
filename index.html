@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurable POS - Staff Panel</title>
 
-    <!-- External Libraries (QR Code, Barcode & Camera Scanner Generators) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- External Libraries (Barcode Generators) -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <!-- Firebase Core & Firestore SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -89,24 +87,10 @@
         .summary-box { background: #0f172a; padding: 15px; border-radius: 8px; font-size: 1.3rem; font-weight: bold; display: flex; justify-content: space-between; margin: 20px 0; border: 1px solid var(--card-border); border-left: 5px solid var(--primary); }
 
         .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; z-index: 10000; backdrop-filter: blur(4px); }
-        .modal-content { 
-    background: var(--card-bg); 
-    border: 1px solid var(--card-border); 
-    border-radius: 16px; 
-    padding: 25px; 
-    width: 100%; 
-    max-width: 450px; 
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); 
-    position: relative; 
-    color: var(--text-main);
-    display: block !important; /* Автоматаар өндрөө авахад тусална */
-}
+        .modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 25px; width: 100%; max-width: 450px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); position: relative; color: var(--text-main); }
         
-        .checkout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; }
-        @media (max-width: 600px) { .checkout-grid { grid-template-columns: 1fr; } }
-
         .numpad-container { display: flex; flex-direction: column; gap: 10px; }
-        .numpad-display { background: #0f172a; border: 1px solid var(--card-border); color: #38bdf8; font-size: 1.5rem; font-weight: bold; text-align: center; padding: 10px; border-radius: 8px; font-family: monospace; letter-spacing: 2px; }
+        .numpad-display { background: #0f172a; border: 1px solid var(--card-border); color: #38bdf8; font-size: 1.5rem; font-weight: bold; text-align: center; padding: 12px; border-radius: 8px; font-family: monospace; letter-spacing: 2px; }
         .numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .num-btn { background: #0f172a; border: 1px solid var(--card-border); color: #fff; font-size: 1.2rem; font-weight: bold; padding: 14px; border-radius: 8px; cursor: pointer; transition: background 0.1s; }
         .num-btn:hover { background: #334155; }
@@ -186,7 +170,7 @@
 
             <div class="scanner-status">
                 <div class="scanner-pulse"></div>
-                <span>USB Barcode & Wallet Scanner Ready</span>
+                <span>USB Barcode Scanner Ready</span>
             </div>
             
             <div class="split-layout">
@@ -221,19 +205,13 @@
             </div>
         </div>
 
-        <!-- CHECKOUT MODAL WITH CAMERA SCANNER & SUCCESS STATE -->
+        <!-- CHECKOUT MODAL (КАМЕРГҮЙ ЦЭВЭРХЭН NUMPAD БОЛОН НОГООН ЗӨВ ТЭМДЭГТЭЙ) -->
         <div class="modal-backdrop" id="checkout-modal">
             <div class="modal-content" style="text-align: center;">
                 <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
                 
-                <!-- 1. АЖИЛТАН ТӨЛБӨР ХҮЛЭЭЖ БАЙГАА ЦОНХ -->
-                <!-- CHECKOUT MODAL (КАМЕРГҮЙ ЗӨВХӨН НУМПАД БОЛОН ID ОРУУЛАХ ХЭСЭГ) -->
-        <div class="modal-backdrop" id="checkout-modal">
-            <div class="modal-content" style="text-align: center; max-width: 450px;">
-                <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
-                
                 <!-- 1. ТӨЛБӨР ХҮЛЭЭЖ БАЙГАА ЦОНХ -->
-                <div id="modal-waiting-content">
+                <div id="modal-waiting-content" style="display: block;">
                     <h3 style="border: none; padding: 0; margin-bottom: 2px;">Complete Payment</h3>
                     <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 8px 0 15px 0;" id="modal-total-display">$0.00</div>
 
@@ -261,21 +239,6 @@
                 </div>
 
                 <!-- 2. 🎉 ТӨЛБӨР АМЖИЛТТАЙ БОЛСОН ҮЕД ГАРДАГ НОГООН ЗӨВ ТЭМДЭГ -->
-                <div id="modal-success-content" style="display: none; padding: 25px 10px; flex-direction: column; align-items: center; justify-content: center;">
-                    <div style="width: 80px; height: 80px; background: rgba(34, 197, 94, 0.2); color: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; margin-bottom: 15px; border: 2px solid #22c55e;">
-                        ✓
-                    </div>
-                    <h3 style="color: #22c55e; font-size: 1.6rem; margin-bottom: 5px; border: none;">PAYMENT SUCCESSFUL!</h3>
-                    <p style="color: var(--text-muted); font-size: 0.95rem;" id="success-customer-label">Customer</p>
-                    <div style="font-size: 2.2rem; font-weight: bold; color: white; margin: 10px 0 20px 0;" id="success-amount-label">$0.00</div>
-                    
-                    <button class="btn btn-success btn-block" onclick="closeCheckoutModal()" style="padding: 14px; font-size: 1.1rem;">Done / Next Order</button>
-                </div>
-
-            </div>
-        </div>
-
-                <!-- 2. 🎉 ТӨЛБӨР АМЖИЛТТАЙ БОЛСОН ҮЕД ГАРДАГ НОГООН ЗӨВ ТЭМДЭГТЭЙ ХЭСЭГ -->
                 <div id="modal-success-content" style="display: none; padding: 25px 10px; flex-direction: column; align-items: center; justify-content: center;">
                     <div style="width: 80px; height: 80px; background: rgba(34, 197, 94, 0.2); color: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; margin-bottom: 15px; border: 2px solid #22c55e;">
                         ✓
@@ -379,7 +342,6 @@
         let cart = [];
         let totalDue = 0.00;
         let typedAccountId = "";
-        let staffScanner = null;
         let activeInvoiceId = null;
         let transactionUnsubscribe = null;
 
@@ -523,7 +485,6 @@
                     fireToast(`✅ Deposited $${amount.toFixed(2)} to ${accountName}! New Balance: $${newBalance.toFixed(2)}`);
                 });
             }).catch((err) => {
-                console.error("Top Up Error:", err);
                 fireToast("❌ Top-up failed: " + err.message);
             });
         }
@@ -555,7 +516,6 @@
                 document.getElementById('new-user-name').value = '';
                 document.getElementById('new-user-initial-balance').value = '50.00';
             }).catch(err => {
-                console.error("Profile Creation Error:", err);
                 fireToast("❌ Profile Creation Failed: " + err.message);
             });
         }
@@ -596,89 +556,8 @@
                   });
               })
               .catch((error) => {
-                  console.error(error);
                   fireToast("❌ Payment failed: " + error.message);
               });
-        }
-
-        // --- CAMERA SCANNER LOGIC FOR WALLET QR ---
-        function startStaffCustomerScanner() {
-            if (staffScanner) return;
-
-            staffScanner = new Html5Qrcode("pos-reader");
-            staffScanner.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 180, height: 180 } },
-                async (decodedText) => {
-                    try {
-                        const parsed = JSON.parse(decodedText);
-                        if (parsed.type === "CUSTOMER_WALLET_PAY" && parsed.accountId) {
-                            playScannerBeep(); 
-                            fireToast(`🔍 Scanned Wallet ID: #${parsed.accountId}`);
-
-                            await staffScanner.stop();
-                            staffScanner = null;
-
-                            await chargeCustomerWalletByAccountId(parsed.accountId);
-                        }
-                    } catch (err) {}
-                },
-                (error) => {}
-            ).catch(err => {});
-        }
-
-        function stopStaffCustomerScanner() {
-            if (staffScanner) {
-                staffScanner.stop().then(() => {
-                    staffScanner.clear();
-                    staffScanner = null;
-                }).catch(() => {
-                    staffScanner = null;
-                });
-            }
-        }
-
-        async function chargeCustomerWalletByAccountId(accountId) {
-            if (cart.length === 0) {
-                fireToast("❌ Cart is empty.");
-                startStaffCustomerScanner();
-                return;
-            }
-
-            try {
-                const querySnapshot = await db.collection("accounts")
-                    .where("accountId", "==", accountId)
-                    .get();
-
-                if (querySnapshot.empty) {
-                    fireToast(`❌ Account #${accountId} not found.`);
-                    startStaffCustomerScanner();
-                    return;
-                }
-
-                const customerDoc = querySnapshot.docs[0];
-                const customerData = customerDoc.data();
-                const currentBal = Number(customerData.balance) || 0;
-
-                if (currentBal < totalDue) {
-                    fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
-                    startStaffCustomerScanner();
-                    return;
-                }
-
-                const newBalance = currentBal - totalDue;
-
-                await customerDoc.ref.update({
-                    balance: newBalance,
-                    lastPurchase: new Date().toISOString()
-                });
-
-                completeCheckoutSuccess(customerData.name || customerData.accountId, totalDue);
-
-            } catch (err) {
-                fireToast("❌ Charge error: " + err.message);
-                startStaffCustomerScanner();
-            }
         }
 
         // USB Scanner & Keypress Listener
@@ -743,7 +622,6 @@
         function completeCheckoutSuccess(customerName, amountPaid) {
             playScannerBeep();
             
-            // Хүлээж байгаа хэсгийг нууж, ногоон зөв тэмдэгтэй цонхыг харуулах
             document.getElementById('modal-waiting-content').style.display = 'none';
             document.getElementById('modal-success-content').style.display = 'flex';
             
@@ -773,17 +651,12 @@
             activeInvoiceId = "INV_" + Date.now();
             document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
             
-            // Төлөвийг хүлээх горимд оруулах
             document.getElementById('modal-waiting-content').style.display = 'block';
             document.getElementById('modal-success-content').style.display = 'none';
-            document.getElementById('modal-success-content').style.removeProperty('flex');
 
             const modal = document.getElementById('checkout-modal');
             if (modal) modal.style.display = 'flex';
 
-            startStaffCustomerScanner();
-
-            // 1. Firestore руу идэвхитэй checkout дүнг бичих
             db.collection("active_checkouts").doc("current_checkout").set({
                 status: "PENDING",
                 invoiceId: activeInvoiceId,
@@ -791,7 +664,6 @@
                 createdAt: Date.now()
             });
 
-            // 2. Scanner эсвэл Wallet төлбөр хийж COMPLETED болмогц ногоон зөв тэмдэг гаргах listener
             if (transactionUnsubscribe) transactionUnsubscribe();
 
             transactionUnsubscribe = db.collection("active_checkouts").doc("current_checkout")
@@ -813,10 +685,9 @@
         }
 
         function closeCheckoutModal() {
-            stopStaffCustomerScanner();
-            document.getElementById('checkout-modal').style.display = 'none';
+            const modal = document.getElementById('checkout-modal');
+            if (modal) modal.style.display = 'none';
             
-            // Буцааж хүлээх горимд оруулах
             document.getElementById('modal-waiting-content').style.display = 'block';
             document.getElementById('modal-success-content').style.display = 'none';
 
