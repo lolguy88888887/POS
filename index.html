@@ -216,40 +216,53 @@
                 <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
                 
                 <!-- 1. АЖИЛТАН ТӨЛБӨР ХҮЛЭЭЖ БАЙГАА ЦОНХ -->
+                <!-- CHECKOUT MODAL (КАМЕРГҮЙ ЗӨВХӨН НУМПАД БОЛОН ID ОРУУЛАХ ХЭСЭГ) -->
+        <div class="modal-backdrop" id="checkout-modal">
+            <div class="modal-content" style="text-align: center; max-width: 450px;">
+                <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
+                
+                <!-- 1. ТӨЛБӨР ХҮЛЭЭЖ БАЙГАА ЦОНХ -->
                 <div id="modal-waiting-content">
                     <h3 style="border: none; padding: 0; margin-bottom: 2px;">Complete Payment</h3>
-                    <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin-top: 4px;" id="modal-total-display">$0.00</div>
+                    <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 8px 0 15px 0;" id="modal-total-display">$0.00</div>
 
-                    <div class="checkout-grid">
-                        <div class="numpad-container">
-                            <label style="margin-bottom:2px; text-align: left;">Scan Card or Type ID:</label>
-                            <div class="numpad-display" id="numpad-input-val">------</div>
-                            
-                            <div class="numpad-grid">
-                                <button class="num-btn" onclick="pressNumpad('1')">1</button>
-                                <button class="num-btn" onclick="pressNumpad('2')">2</button>
-                                <button class="num-btn" onclick="pressNumpad('3')">3</button>
-                                <button class="num-btn" onclick="pressNumpad('4')">4</button>
-                                <button class="num-btn" onclick="pressNumpad('5')">5</button>
-                                <button class="num-btn" onclick="pressNumpad('6')">6</button>
-                                <button class="num-btn" onclick="pressNumpad('7')">7</button>
-                                <button class="num-btn" onclick="pressNumpad('8')">8</button>
-                                <button class="num-btn" onclick="pressNumpad('9')">9</button>
-                                <button class="num-btn" style="color:var(--danger);" onclick="pressNumpad('C')">C</button>
-                                <button class="num-btn" onclick="pressNumpad('0')">0</button>
-                                <button class="num-btn" style="color:var(--warning);" onclick="pressNumpad('DEL')">⌫</button>
-                            </div>
-
-                            <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 12px; margin-top: 4px;">Charge Account</button>
+                    <div class="numpad-container">
+                        <label style="margin-bottom:2px; text-align: left;">Enter or Scan Account ID:</label>
+                        <div class="numpad-display" id="numpad-input-val">------</div>
+                        
+                        <div class="numpad-grid" style="margin-bottom: 15px;">
+                            <button class="num-btn" onclick="pressNumpad('1')">1</button>
+                            <button class="num-btn" onclick="pressNumpad('2')">2</button>
+                            <button class="num-btn" onclick="pressNumpad('3')">3</button>
+                            <button class="num-btn" onclick="pressNumpad('4')">4</button>
+                            <button class="num-btn" onclick="pressNumpad('5')">5</button>
+                            <button class="num-btn" onclick="pressNumpad('6')">6</button>
+                            <button class="num-btn" onclick="pressNumpad('7')">7</button>
+                            <button class="num-btn" onclick="pressNumpad('8')">8</button>
+                            <button class="num-btn" onclick="pressNumpad('9')">9</button>
+                            <button class="num-btn" style="color:var(--danger);" onclick="pressNumpad('C')">C</button>
+                            <button class="num-btn" onclick="pressNumpad('0')">0</button>
+                            <button class="num-btn" style="color:var(--warning);" onclick="pressNumpad('DEL')">⌫</button>
                         </div>
 
-                        <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid var(--card-border); padding-left: 15px;">
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">📷 Scan Customer Wallet QR</p>
-                            <div id="pos-reader" style="width: 100%; max-width: 220px; border-radius: 8px; overflow: hidden; background: black;"></div>
-                            <div style="color: #34d399; font-weight: 600; font-size: 0.75rem; margin-top: 8px;">🔊 Scanner active & ready for beep</div>
-                        </div>
+                        <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 14px; font-size: 1.1rem;">Charge Account</button>
                     </div>
                 </div>
+
+                <!-- 2. 🎉 ТӨЛБӨР АМЖИЛТТАЙ БОЛСОН ҮЕД ГАРДАГ НОГООН ЗӨВ ТЭМДЭГ -->
+                <div id="modal-success-content" style="display: none; padding: 25px 10px; flex-direction: column; align-items: center; justify-content: center;">
+                    <div style="width: 80px; height: 80px; background: rgba(34, 197, 94, 0.2); color: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; margin-bottom: 15px; border: 2px solid #22c55e;">
+                        ✓
+                    </div>
+                    <h3 style="color: #22c55e; font-size: 1.6rem; margin-bottom: 5px; border: none;">PAYMENT SUCCESSFUL!</h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem;" id="success-customer-label">Customer</p>
+                    <div style="font-size: 2.2rem; font-weight: bold; color: white; margin: 10px 0 20px 0;" id="success-amount-label">$0.00</div>
+                    
+                    <button class="btn btn-success btn-block" onclick="closeCheckoutModal()" style="padding: 14px; font-size: 1.1rem;">Done / Next Order</button>
+                </div>
+
+            </div>
+        </div>
 
                 <!-- 2. 🎉 ТӨЛБӨР АМЖИЛТТАЙ БОЛСОН ҮЕД ГАРДАГ НОГООН ЗӨВ ТЭМДЭГТЭЙ ХЭСЭГ -->
                 <div id="modal-success-content" style="display: none; padding: 25px 10px; flex-direction: column; align-items: center; justify-content: center;">
