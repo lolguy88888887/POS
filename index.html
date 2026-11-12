@@ -463,20 +463,19 @@
             }
 
             const codeStr = String(rawCode);
-            const accountRef = db.collection("accounts").doc(codeStr);
-
-            accountRef.get().then((doc) => {
-                if (!doc.exists) {
+            db.collection("accounts").where("accountId", "==", codeStr).get().then((querySnapshot) => {
+                if (querySnapshot.empty) {
                     fireToast(`❌ Account #${codeStr} does not exist.`);
                     return;
                 }
 
+                const doc = querySnapshot.docs[0];
                 const data = doc.data();
                 const currentBalance = parseFloat(data.balance) || 0;
                 const newBalance = currentBalance + amount;
                 const accountName = data.name || data.displayName || `Account (${codeStr})`;
 
-                return accountRef.update({
+                return doc.ref.update({
                     balance: newBalance,
                     lastTopUp: Date.now()
                 }).then(() => {
@@ -537,8 +536,8 @@
                       return;
                   }
 
-                  const doc = querySnapshot.docs[0];
-                  const customer = doc.data();
+                  const userDoc = querySnapshot.docs[0];
+                  const customer = userDoc.data();
                   const currentBal = Number(customer.balance) || 0;
 
                   if (currentBal < totalDue) {
@@ -548,7 +547,7 @@
 
                   const newBalance = currentBal - totalDue;
 
-                  doc.ref.update({
+                  userDoc.ref.update({
                       balance: newBalance,
                       lastPurchase: new Date().toISOString()
                   }).then(() => {
@@ -662,7 +661,7 @@
                 invoiceId: activeInvoiceId,
                 amount: totalDue,
                 createdAt: Date.now()
-            });
+            }).catch(err => console.error(err));
 
             if (transactionUnsubscribe) transactionUnsubscribe();
 
@@ -697,7 +696,7 @@
                 status: "IDLE",
                 invoiceId: null,
                 amount: 0.00
-            });
+            }).catch(err => console.error(err));
 
             typedAccountId = "";
             syncCustomerDisplay();
