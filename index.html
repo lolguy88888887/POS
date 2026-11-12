@@ -205,7 +205,7 @@
             </div>
         </div>
 
-        <!-- CHECKOUT MODAL (КАМЕРГҮЙ ЦЭВЭРХЭН NUMPAD БОЛОН НОГООН ЗӨВ ТЭМДЭГТЭЙ) -->
+        <!-- CHECKOUT MODAL -->
         <div class="modal-backdrop" id="checkout-modal">
             <div class="modal-content" style="text-align: center;">
                 <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
@@ -617,7 +617,6 @@
             document.getElementById('numpad-input-val').innerText = typedAccountId || "------";
         }
 
-        // 🎉 АМЖИЛТТАЙ ЗӨВ ТЭМДЭГ ХАРУУЛАХ ФУНКЦ
         function completeCheckoutSuccess(customerName, amountPaid) {
             playScannerBeep();
             
@@ -673,6 +672,8 @@
                             completeCheckoutSuccess(data.customerName || "Customer", totalDue);
                         }
                     }
+                }, (error) => {
+                    console.error("Firestore snapshot error: ", error);
                 });
 
             displayChannel.postMessage({
