@@ -5,10 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurable POS - Staff Panel</title>
 
-    <!-- External Libraries (Barcode Generators) -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-
-    <!-- Firebase Core & Firestore SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -123,7 +120,7 @@
     </nav>
 
     <div class="main-content">
-        <!-- LOGIN SCREEN VIEW -->
+        <!-- LOGIN SCREEN -->
         <div id="login-view" class="page-view active-view">
             <div class="card login-wrapper">
                 <div style="text-align: center; margin-bottom: 20px;">
@@ -170,7 +167,7 @@
 
             <div class="scanner-status">
                 <div class="scanner-pulse"></div>
-                <span>USB Barcode Scanner Ready</span>
+                <span>USB Barcode / QR Scanner Ready</span>
             </div>
             
             <div class="split-layout">
@@ -216,7 +213,7 @@
                     <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 8px 0 15px 0;" id="modal-total-display">$0.00</div>
 
                     <div class="numpad-container">
-                        <label style="margin-bottom:2px; text-align: left;">Enter or Scan Account ID:</label>
+                        <label style="margin-bottom:2px; text-align: left;">Scan Customer QR or Enter Account ID:</label>
                         <div class="numpad-display" id="numpad-input-val">------</div>
                         
                         <div class="numpad-grid" style="margin-bottom: 15px;">
@@ -249,23 +246,6 @@
                     
                     <button class="btn btn-success btn-block" onclick="closeCheckoutModal()" style="padding: 14px; font-size: 1.1rem;">Done / Next Order</button>
                 </div>
-
-            </div>
-        </div>
-
-        <!-- TOP UP VIEW -->
-        <div id="topup-view" class="page-view">
-            <div class="card" style="max-width: 500px; margin: 0 auto;">
-                <h2>Account Balance Top-Up Gateway</h2>
-                <div class="form-group">
-                    <label>Enter Customer Numeric Account Code</label>
-                    <input type="text" id="topup-barcode-search" placeholder="e.g. 10011">
-                </div>
-                <div class="form-group">
-                    <label>Deposit Amount ($ USD)</label>
-                    <input type="number" id="topup-amount-input" placeholder="0.00" step="0.01">
-                </div>
-                <button class="btn btn-primary btn-block" onclick="submitWalletTopUp()">Complete Electronic Deposit</button>
             </div>
         </div>
 
@@ -290,7 +270,6 @@
             <div class="card">
                 <h2 id="form-action-title">Add New Product to System</h2>
                 <input type="hidden" id="edit-product-id-tracker" value="">
-                
                 <div class="form-inline">
                     <div>
                         <label>Name</label>
@@ -344,11 +323,11 @@
         let typedAccountId = "";
         let activeInvoiceId = null;
         let transactionUnsubscribe = null;
+        let isCheckoutCompleted = false;
 
         let barcodeBuffer = "";
         let lastKeyTime = Date.now();
 
-        // Staff Auth State
         let currentPinInput = "";
         let activeStaffUser = null;
         const DEFAULT_PIN = "1234";
@@ -360,57 +339,41 @@
             setTimeout(() => { toast.style.display = 'none'; }, 3500);
         }
 
-        // --- AUDIO BEEP GENERATOR ---
         function playScannerBeep() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-
                 oscillator.type = "sine";
                 oscillator.frequency.setValueAtTime(850, audioCtx.currentTime); 
                 gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); 
-
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + 0.15); 
             } catch (e) {}
         }
 
-        // --- LOGIN LOGIC ---
         function pressLoginPin(val) {
-            if (val === 'C') {
-                currentPinInput = "";
-            } else if (val === 'DEL') {
-                currentPinInput = currentPinInput.slice(0, -1);
-            } else {
-                if (currentPinInput.length < 4) currentPinInput += val;
-            }
-            updateLoginPinDisplay();
-        }
-
-        function updateLoginPinDisplay() {
-            const display = document.getElementById('login-pin-masked');
-            display.innerText = "•".repeat(currentPinInput.length) || "••••";
+            if (val === 'C') currentPinInput = "";
+            else if (val === 'DEL') currentPinInput = currentPinInput.slice(0, -1);
+            else if (currentPinInput.length < 4) currentPinInput += val;
+            document.getElementById('login-pin-masked').innerText = "•".repeat(currentPinInput.length) || "••••";
         }
 
         function attemptLogin() {
             if (currentPinInput === DEFAULT_PIN) {
                 activeStaffUser = document.getElementById('staff-select-input').value;
                 document.getElementById('logged-staff-name').innerText = `👤 ${activeStaffUser}`;
-                
                 document.getElementById('top-nav').style.display = 'flex';
                 switchView('register-view');
                 fireToast(`Welcome back, ${activeStaffUser}!`);
-                
                 currentPinInput = "";
-                updateLoginPinDisplay();
+                document.getElementById('login-pin-masked').innerText = "••••";
             } else {
                 fireToast("❌ Incorrect PIN. (Default: 1234)");
                 currentPinInput = "";
-                updateLoginPinDisplay();
+                document.getElementById('login-pin-masked').innerText = "••••";
             }
         }
 
@@ -428,13 +391,10 @@
             if(btnElement) btnElement.classList.add('active');
         }
 
-        // Live Product Sync from Firestore
         db.collection('products').onSnapshot((snapshot) => {
             products = [];
             if (!snapshot.empty) {
-                snapshot.forEach(doc => {
-                    products.push({ id: doc.id, ...doc.data() });
-                });
+                snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
             } else {
                 const defaultSeed = [
                     { barcode: "111", icon: "☕", name: "Hot Coffee", price: 3.50 },
@@ -447,61 +407,12 @@
             buildInventoryManagementTables();
         });
 
-        function submitWalletTopUp() {
-            const rawCode = document.getElementById('topup-barcode-search').value.trim();
-            const amountInput = document.getElementById('topup-amount-input').value.trim();
-            const amount = parseFloat(amountInput);
-
-            if (!rawCode) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
-
-            if (isNaN(amount) || amount <= 0) { 
-                fireToast("❌ Please enter a valid deposit amount greater than $0.00."); 
-                return; 
-            }
-
-            const codeStr = String(rawCode);
-            db.collection("accounts").where("accountId", "==", codeStr).get().then((querySnapshot) => {
-                if (querySnapshot.empty) {
-                    fireToast(`❌ Account #${codeStr} does not exist.`);
-                    return;
-                }
-
-                const doc = querySnapshot.docs[0];
-                const data = doc.data();
-                const currentBalance = parseFloat(data.balance) || 0;
-                const newBalance = currentBalance + amount;
-                const accountName = data.name || data.displayName || `Account (${codeStr})`;
-
-                return doc.ref.update({
-                    balance: newBalance,
-                    lastTopUp: Date.now()
-                }).then(() => {
-                    document.getElementById('topup-barcode-search').value = '';
-                    document.getElementById('topup-amount-input').value = '';
-                    fireToast(`✅ Deposited $${amount.toFixed(2)} to ${accountName}! New Balance: $${newBalance.toFixed(2)}`);
-                });
-            }).catch((err) => {
-                fireToast("❌ Top-up failed: " + err.message);
-            });
-        }
-
         function createNewBarcodeProfile() {
             const name = document.getElementById('new-user-name').value.trim();
-            const initialBalanceInput = document.getElementById('new-user-initial-balance').value.trim();
-            const initialBalance = parseFloat(initialBalanceInput);
+            const initialBalance = parseFloat(document.getElementById('new-user-initial-balance').value.trim());
 
-            if (!name) {
-                fireToast("❌ Please enter an Account Holder Name.");
-                return;
-            }
-
-            if (isNaN(initialBalance) || initialBalance < 0) {
-                fireToast("❌ Please enter a valid starting balance.");
-                return;
-            }
+            if (!name) return fireToast("❌ Please enter an Account Holder Name.");
+            if (isNaN(initialBalance) || initialBalance < 0) return fireToast("❌ Invalid starting balance.");
 
             const generatedAccountId = String(Math.floor(10000 + Math.random() * 90000));
 
@@ -509,23 +420,27 @@
                 accountId: generatedAccountId,
                 name: name,
                 balance: initialBalance,
+                pinCode: "1234",
                 createdAt: Date.now()
             }).then(() => {
                 fireToast(`✅ Profile Created! ID: ${generatedAccountId} (Name: ${name})`);
                 document.getElementById('new-user-name').value = '';
                 document.getElementById('new-user-initial-balance').value = '50.00';
-            }).catch(err => {
-                fireToast("❌ Profile Creation Failed: " + err.message);
-            });
+            }).catch(err => fireToast("❌ Profile Creation Failed: " + err.message));
         }
 
+        // ⚡ POS ТАЛААС ХЭРЭГЛЭГЧИЙН QR/ID УНШУУЛЖ ЦЭНЭГЛЭХ ҮЕД
         function processDirectIdCharge() {
-            if (!typedAccountId) {
-                fireToast("❌ Please enter or scan an Account ID.");
-                return;
-            }
+            if (!typedAccountId) return fireToast("❌ Please enter or scan an Account ID.");
 
-            const searchInput = String(typedAccountId).trim();
+            // Хэрэв JSON хэлбэртэй QR уншигдсан бол дотроос нь accountId-г салгаж авна
+            let searchInput = String(typedAccountId).trim();
+            try {
+                const parsed = JSON.parse(searchInput);
+                if (parsed.accountId) searchInput = String(parsed.accountId);
+            } catch(e) {}
+
+            const chargeAmount = totalDue;
 
             db.collection("accounts")
               .where("accountId", "==", searchInput)
@@ -540,18 +455,20 @@
                   const customer = userDoc.data();
                   const currentBal = Number(customer.balance) || 0;
 
-                  if (currentBal < totalDue) {
+                  if (currentBal < chargeAmount) {
                       fireToast(`❌ Insufficient funds! Balance: $${currentBal.toFixed(2)}`);
                       return;
                   }
 
-                  const newBalance = currentBal - totalDue;
+                  const newBalance = currentBal - chargeAmount;
 
+                  // Хэрэглэгчийн балансыг хасах + Утсан дээр нь ногоон зөв тэмдэг гаргах дохио бичих
                   userDoc.ref.update({
                       balance: newBalance,
-                      lastPurchase: new Date().toISOString()
+                      lastChargeTimestamp: Date.now(),
+                      lastChargeAmount: chargeAmount
                   }).then(() => {
-                      completeCheckoutSuccess(customer.name || customer.accountId || "Customer", totalDue);
+                      completeCheckoutSuccess(customer.name || customer.accountId || "Customer", chargeAmount);
                   });
               })
               .catch((error) => {
@@ -559,7 +476,6 @@
               });
         }
 
-        // USB Scanner & Keypress Listener
         window.addEventListener("keydown", function(e) {
             const currentTime = Date.now();
             if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return; 
@@ -603,13 +519,9 @@
         });
 
         function pressNumpad(val) {
-            if (val === 'C') {
-                typedAccountId = "";
-            } else if (val === 'DEL') {
-                typedAccountId = typedAccountId.slice(0, -1);
-            } else {
-                if (typedAccountId.length < 10) typedAccountId += val;
-            }
+            if (val === 'C') typedAccountId = "";
+            else if (val === 'DEL') typedAccountId = typedAccountId.slice(0, -1);
+            else if (typedAccountId.length < 15) typedAccountId += val;
             updateNumpadUI();
         }
 
@@ -618,6 +530,9 @@
         }
 
         function completeCheckoutSuccess(customerName, amountPaid) {
+            if (isCheckoutCompleted) return;
+            isCheckoutCompleted = true;
+
             playScannerBeep();
             
             document.getElementById('modal-waiting-content').style.display = 'none';
@@ -626,28 +541,27 @@
             document.getElementById('success-customer-label').innerText = `Paid by: ${customerName}`;
             document.getElementById('success-amount-label').innerText = `$${Number(amountPaid).toFixed(2)}`;
 
-            fireToast(`✅ Payment Successful! $${amountPaid.toFixed(2)} charged to ${customerName}`);
+            fireToast(`✅ Payment Successful! $${Number(amountPaid).toFixed(2)} charged to ${customerName}`);
             
             displayChannel.postMessage({
                 type: 'PAYMENT_STATUS',
                 status: 'SUCCESS',
-                message: `✅ Paid $${amountPaid.toFixed(2)} by ${customerName}`
+                message: `✅ Paid $${Number(amountPaid).toFixed(2)} by ${customerName}`
             });
 
             clearCart();
         }
 
         function openCheckoutModal() {
-            if (cart.length === 0) {
-                fireToast("❌ Cart is empty.");
-                return;
-            }
+            if (cart.length === 0) return fireToast("❌ Cart is empty.");
 
+            isCheckoutCompleted = false;
             typedAccountId = "";
             updateNumpadUI();
 
+            const currentAmount = totalDue;
             activeInvoiceId = "INV_" + Date.now();
-            document.getElementById('modal-total-display').innerText = `$${totalDue.toFixed(2)}`;
+            document.getElementById('modal-total-display').innerText = `$${currentAmount.toFixed(2)}`;
             
             document.getElementById('modal-waiting-content').style.display = 'block';
             document.getElementById('modal-success-content').style.display = 'none';
@@ -658,18 +572,19 @@
             db.collection("active_checkouts").doc("current_checkout").set({
                 status: "PENDING",
                 invoiceId: activeInvoiceId,
-                amount: totalDue,
+                amount: currentAmount,
                 createdAt: Date.now()
             }).catch(err => console.error(err));
 
             if (transactionUnsubscribe) transactionUnsubscribe();
 
+            // ⚡ УТАСНЫ WALLET-ААС QR УНШИЖ ТӨЛӨХИЙГ ХҮЛЭЭХ LISTENER
             transactionUnsubscribe = db.collection("active_checkouts").doc("current_checkout")
                 .onSnapshot((docSnap) => {
                     if (docSnap.exists) {
                         const data = docSnap.data();
-                        if (data.status === "COMPLETED" && data.invoiceId === activeInvoiceId) {
-                            completeCheckoutSuccess(data.customerName || "Customer", totalDue);
+                        if (data.status === "COMPLETED" && String(data.invoiceId) === String(activeInvoiceId)) {
+                            completeCheckoutSuccess(data.customerName || "Customer", data.amount || currentAmount);
                         }
                     }
                 }, (error) => {
@@ -679,7 +594,7 @@
             displayChannel.postMessage({
                 type: 'SHOW_INVOICE_QR',
                 invoiceId: activeInvoiceId,
-                amount: totalDue,
+                amount: currentAmount,
                 cart: cart
             });
         }
@@ -705,20 +620,13 @@
 
         function addItemToCart(product) {
             const match = cart.find(c => c.id === product.id);
-            if (match) { 
-                match.quantity++; 
-            } else { 
-                cart.push({ id: product.id, name: product.name, icon: product.icon, price: product.price, quantity: 1 }); 
-            }
+            if (match) match.quantity++; 
+            else cart.push({ id: product.id, name: product.name, icon: product.icon, price: product.price, quantity: 1 }); 
             buildCartUI();
         }
 
         function syncCustomerDisplay() {
-            displayChannel.postMessage({
-                type: 'UPDATE_CART',
-                cart: cart,
-                total: totalDue
-            });
+            displayChannel.postMessage({ type: 'UPDATE_CART', cart: cart, total: totalDue });
         }
 
         function clearCart() { cart = []; buildCartUI(); }
@@ -778,13 +686,7 @@
                 tbody.appendChild(tr);
 
                 try {
-                    JsBarcode(`#barcode-prod-${p.id}`, p.barcode, {
-                        format: "CODE128",
-                        height: 25,
-                        width: 1,
-                        displayValue: true,
-                        fontSize: 10
-                    });
+                    JsBarcode(`#barcode-prod-${p.id}`, p.barcode, { format: "CODE128", height: 25, width: 1, displayValue: true, fontSize: 10 });
                 } catch(err) {}
             });
         }
@@ -796,36 +698,24 @@
             const price = parseFloat(document.getElementById('new-product-price').value.trim());
             const barcode = document.getElementById('new-product-barcode').value.trim();
 
-            if (!name || isNaN(price) || !barcode) {
-                fireToast("❌ Please complete Name, Price, and Barcode fields.");
-                return;
-            }
-
+            if (!name || isNaN(price) || !barcode) return fireToast("❌ Complete all fields.");
             const payload = { name, icon, price, barcode };
 
             if (id) {
-                db.collection('products').doc(id).update(payload).then(() => {
-                    fireToast(`✅ Updated Product: ${name}`);
-                    resetProductForm();
-                });
+                db.collection('products').doc(id).update(payload).then(() => { fireToast(`✅ Updated: ${name}`); resetProductForm(); });
             } else {
-                db.collection('products').add(payload).then(() => {
-                    fireToast(`✅ Created Product: ${name}`);
-                    resetProductForm();
-                });
+                db.collection('products').add(payload).then(() => { fireToast(`✅ Created: ${name}`); resetProductForm(); });
             }
         }
 
         function startEditProduct(id) {
             const product = products.find(p => p.id === id);
             if (!product) return;
-
             document.getElementById('edit-product-id-tracker').value = product.id;
             document.getElementById('new-product-name').value = product.name;
             document.getElementById('new-product-icon').value = product.icon;
             document.getElementById('new-product-price').value = product.price;
             document.getElementById('new-product-barcode').value = product.barcode;
-
             document.getElementById('form-action-title').innerText = "Edit Existing Product";
             document.getElementById('btn-inventory-submit').innerText = "Update Product";
             document.getElementById('btn-inventory-cancel').style.display = "inline-block";
@@ -837,17 +727,14 @@
             document.getElementById('new-product-icon').value = '';
             document.getElementById('new-product-price').value = '';
             document.getElementById('new-product-barcode').value = '';
-
             document.getElementById('form-action-title').innerText = "Add New Product to System";
             document.getElementById('btn-inventory-submit').innerText = "Commit Product Registry";
             document.getElementById('btn-inventory-cancel').style.display = "none";
         }
 
         function deleteProduct(id) {
-            if (confirm("Are you sure you want to remove this product from the database?")) {
-                db.collection('products').doc(id).delete().then(() => {
-                    fireToast("🗑️ Product deleted successfully.");
-                });
+            if (confirm("Delete this product?")) {
+                db.collection('products').doc(id).delete().then(() => fireToast("🗑️ Deleted."));
             }
         }
     </script>
