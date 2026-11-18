@@ -44,10 +44,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: var(--dark-bg); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
 
-        nav { background-color: #020617; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); }
+        nav { background-color: #020617; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 10px; }
         .nav-brand { font-size: 1.4rem; font-weight: bold; }
-        .nav-links { display: flex; gap: 10px; align-items: center; }
-        .nav-btn { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; text-decoration: none; }
+        .nav-links { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .nav-btn { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; text-decoration: none; font-size: 0.9rem; }
         .nav-btn:hover, .nav-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
 
         .main-content { flex: 1; padding: 25px; max-width: 1300px; width: 100%; margin: 0 auto; }
@@ -103,6 +103,7 @@
         .login-wrapper { max-width: 420px; margin: 60px auto 0 auto; }
         .login-pin-display { background: #0f172a; border: 1px solid var(--card-border); color: #f8fafc; font-size: 2rem; font-weight: bold; text-align: center; padding: 12px; border-radius: 8px; font-family: monospace; letter-spacing: 12px; margin-bottom: 15px; }
         .staff-badge { background: #1e3a8a; color: #93c5fd; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; }
+        .kbd-badge { background: #334155; border: 1px solid #475569; padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 0.85rem; color: #38bdf8; }
     </style>
 </head>
 <body>
@@ -114,8 +115,9 @@
             <button class="nav-btn active" onclick="switchView('register-view', this)">POS Register</button>
             <a href="topup.html" class="nav-btn">Top-Up</a>
             <button class="nav-btn" onclick="switchView('customer-gen-view', this)">+ Create Profile</button>
-            <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Manage Products</button>
-            <button class="nav-btn" onclick="logoutStaff()" style="border-color: var(--danger); color: var(--danger);">🔒 Lock Terminal</button>
+            <button class="nav-btn" onclick="switchView('inventory-view', this)">⚙️ Products</button>
+            <button class="nav-btn" onclick="switchView('shortcuts-view', this)">⌨️ Shortcuts</button>
+            <button class="nav-btn" onclick="logoutStaff()" style="border-color: var(--danger); color: var(--danger);">🔒 Lock</button>
         </div>
     </nav>
 
@@ -167,7 +169,7 @@
 
             <div class="scanner-status">
                 <div class="scanner-pulse"></div>
-                <span>USB Barcode / QR Scanner Ready</span>
+                <span>USB Barcode / QR Scanner & Hotkeys Ready</span>
             </div>
             
             <div class="split-layout">
@@ -195,8 +197,12 @@
                             <span id="cart-total-display">$0.00</span>
                         </div>
 
-                        <button class="btn btn-success btn-block btn-lg" id="checkout-trigger-btn" onclick="openCheckoutModal()" style="margin-bottom: 12px;">🔒 Proceed to Checkout</button>
-                        <button class="btn btn-danger btn-block" onclick="clearCart()" style="padding: 8px; font-size:0.85rem;">Void Cart Order</button>
+                        <button class="btn btn-success btn-block btn-lg" id="checkout-trigger-btn" onclick="openCheckoutModal()" style="margin-bottom: 12px;">
+                            🔒 Proceed to Checkout [<span id="btn-checkout-key-label">F6</span>]
+                        </button>
+                        <button class="btn btn-danger btn-block" onclick="clearCart()" style="padding: 8px; font-size:0.85rem;">
+                            Void Cart Order [<span id="btn-void-key-label">F4</span>]
+                        </button>
                     </div>
                 </div>
             </div>
@@ -205,9 +211,8 @@
         <!-- CHECKOUT MODAL -->
         <div class="modal-backdrop" id="checkout-modal">
             <div class="modal-content" style="text-align: center;">
-                <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel</button>
+                <button class="btn btn-danger btn-sm" onclick="closeCheckoutModal()" style="position: absolute; top: 15px; right: 15px; z-index: 10;">✕ Cancel [Esc]</button>
                 
-                <!-- 1. ТӨЛБӨР ХҮЛЭЭЖ БАЙГАА ЦОНХ -->
                 <div id="modal-waiting-content" style="display: block;">
                     <h3 style="border: none; padding: 0; margin-bottom: 2px;">Complete Payment</h3>
                     <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 8px 0 15px 0;" id="modal-total-display">$0.00</div>
@@ -231,21 +236,66 @@
                             <button class="num-btn" style="color:var(--warning);" onclick="pressNumpad('DEL')">⌫</button>
                         </div>
 
-                        <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 14px; font-size: 1.1rem;">Charge Account</button>
+                        <button class="btn btn-primary btn-block" onclick="processDirectIdCharge()" style="padding: 14px; font-size: 1.1rem;">Charge Account [Enter]</button>
                     </div>
                 </div>
 
-                <!-- 2. 🎉 ТӨЛБӨР АМЖИЛТТАЙ БОЛСОН ҮЕД ГАРДАГ НОГООН ЗӨВ ТЭМДЭГ -->
                 <div id="modal-success-content" style="display: none; padding: 25px 10px; flex-direction: column; align-items: center; justify-content: center;">
                     <div style="width: 80px; height: 80px; background: rgba(34, 197, 94, 0.2); color: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; margin-bottom: 15px; border: 2px solid #22c55e;">
                         ✓
                     </div>
                     <h3 style="color: #22c55e; font-size: 1.6rem; margin-bottom: 5px; border: none;">PAYMENT SUCCESSFUL!</h3>
                     <p style="color: var(--text-muted); font-size: 0.95rem;" id="success-customer-label">Customer</p>
-                    <div style="font-size: 2.2rem; font-weight: bold; color: white; margin: 10px 0 20px 0;" id="success-amount-label">$0.00</div>
+                    <div style="font-size: 2.2rem; font-weight: bold; color: white; margin: 10px 0 5px 0;" id="success-amount-label">$0.00</div>
+                    <p style="color: #38bdf8; font-size: 0.85rem; margin-bottom: 20px;">🧾 Digital Receipt sent to Customer Wallet!</p>
                     
-                    <button class="btn btn-success btn-block" onclick="closeCheckoutModal()" style="padding: 14px; font-size: 1.1rem;">Done / Next Order</button>
+                    <button class="btn btn-success btn-block" onclick="closeCheckoutModal()" style="padding: 14px; font-size: 1.1rem;">Done / Next Order [Enter / Esc]</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- KEYBOARD SHORTCUTS SETTINGS VIEW -->
+        <div id="shortcuts-view" class="page-view">
+            <div class="card" style="max-width: 550px; margin: 0 auto;">
+                <h2>⌨️ Keyboard Shortcuts Configuration</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
+                    Customize which function keys trigger POS actions directly from your keyboard.
+                </p>
+
+                <div class="form-group">
+                    <label>Open Checkout Modal (Төлбөр авах цонх нээх)</label>
+                    <select id="shortcut-checkout-select">
+                        <option value="F6">F6 (Default)</option>
+                        <option value="F1">F1</option>
+                        <option value="F2">F2</option>
+                        <option value="F3">F3</option>
+                        <option value="F5">F5</option>
+                        <option value="F7">F7</option>
+                        <option value="F8">F8</option>
+                        <option value="F9">F9</option>
+                        <option value="F10">F10</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Void / Clear Cart (Сагс хоослох)</label>
+                    <select id="shortcut-void-select">
+                        <option value="F4">F4 (Default)</option>
+                        <option value="F2">F2</option>
+                        <option value="F3">F3</option>
+                        <option value="F7">F7</option>
+                        <option value="F8">F8</option>
+                        <option value="F9">F9</option>
+                        <option value="Delete">Delete</option>
+                    </select>
+                </div>
+
+                <div style="background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--card-border); margin-bottom: 20px; font-size: 0.85rem; color: var(--text-muted);">
+                    <div style="margin-bottom: 6px;">• <span class="kbd-badge">Enter</span> — Confirm charge inside Checkout Modal / Close Success Modal</div>
+                    <div>• <span class="kbd-badge">Esc</span> — Cancel & close Checkout Modal</div>
+                </div>
+
+                <button class="btn btn-primary btn-block" onclick="saveShortcutSettings()">Save Keyboard Shortcuts</button>
             </div>
         </div>
 
@@ -331,6 +381,29 @@
         let currentPinInput = "";
         let activeStaffUser = null;
         const DEFAULT_PIN = "1234";
+
+        // Keyboard Shortcuts State (Saved in LocalStorage)
+        let posShortcuts = JSON.parse(localStorage.getItem('pos_shortcuts')) || {
+            checkout: 'F6',
+            voidCart: 'F4'
+        };
+
+        function applyShortcutLabels() {
+            document.getElementById('btn-checkout-key-label').innerText = posShortcuts.checkout;
+            document.getElementById('btn-void-key-label').innerText = posShortcuts.voidCart;
+            document.getElementById('shortcut-checkout-select').value = posShortcuts.checkout;
+            document.getElementById('shortcut-void-select').value = posShortcuts.voidCart;
+        }
+
+        function saveShortcutSettings() {
+            posShortcuts.checkout = document.getElementById('shortcut-checkout-select').value;
+            posShortcuts.voidCart = document.getElementById('shortcut-void-select').value;
+            localStorage.setItem('pos_shortcuts', JSON.stringify(posShortcuts));
+            applyShortcutLabels();
+            fireToast(`✅ Shortcuts Saved! Checkout: [${posShortcuts.checkout}], Void: [${posShortcuts.voidCart}]`);
+        }
+
+        window.addEventListener('DOMContentLoaded', applyShortcutLabels);
 
         function fireToast(msg) {
             const toast = document.getElementById('toast');
@@ -429,11 +502,31 @@
             }).catch(err => fireToast("❌ Profile Creation Failed: " + err.message));
         }
 
+        // 🧾 WALLET ДОТОР ЦАХИМ БАРИМТ ХАДГАЛАХ ТУСЛАХ ФУНКЦ
+        async function saveDigitalReceiptToWallet(accountId, invoiceId, amount, itemsList) {
+            try {
+                await db.collection("receipts").add({
+                    accountId: String(accountId),
+                    invoiceId: String(invoiceId || ("INV_" + Date.now())),
+                    amount: Number(amount),
+                    items: itemsList.map(i => ({
+                        name: i.name,
+                        icon: i.icon || "📦",
+                        price: Number(i.price),
+                        quantity: Number(i.quantity)
+                    })),
+                    staff: activeStaffUser || "POS Terminal",
+                    createdAt: Date.now()
+                });
+            } catch (err) {
+                console.error("Failed to save digital receipt:", err);
+            }
+        }
+
         // ⚡ POS ТАЛААС ХЭРЭГЛЭГЧИЙН QR/ID УНШУУЛЖ ЦЭНЭГЛЭХ ҮЕД
         function processDirectIdCharge() {
             if (!typedAccountId) return fireToast("❌ Please enter or scan an Account ID.");
 
-            // Хэрэв JSON хэлбэртэй QR уншигдсан бол дотроос нь accountId-г салгаж авна
             let searchInput = String(typedAccountId).trim();
             try {
                 const parsed = JSON.parse(searchInput);
@@ -441,11 +534,12 @@
             } catch(e) {}
 
             const chargeAmount = totalDue;
+            const currentCartSnapshot = [...cart];
 
             db.collection("accounts")
               .where("accountId", "==", searchInput)
               .get()
-              .then((querySnapshot) => {
+              .then(async (querySnapshot) => {
                   if (querySnapshot.empty) {
                       fireToast(`❌ Account "${searchInput}" not found.`);
                       return;
@@ -462,23 +556,28 @@
 
                   const newBalance = currentBal - chargeAmount;
 
-                  // Хэрэглэгчийн балансыг хасах + Утсан дээр нь ногоон зөв тэмдэг гаргах дохио бичих
-                  userDoc.ref.update({
+                  // 1. Хэрэглэгчийн балансыг хасах + Утсан дээр нь ногоон зөв тэмдэг гаргах дохио бичих
+                  await userDoc.ref.update({
                       balance: newBalance,
                       lastChargeTimestamp: Date.now(),
                       lastChargeAmount: chargeAmount
-                  }).then(() => {
-                      completeCheckoutSuccess(customer.name || customer.accountId || "Customer", chargeAmount);
                   });
+
+                  // 2. Цахим баримтыг Wallet руу илгээж хадгалах
+                  await saveDigitalReceiptToWallet(searchInput, activeInvoiceId, chargeAmount, currentCartSnapshot);
+
+                  // 3. Амжилттай дэлгэц харуулах
+                  completeCheckoutSuccess(customer.name || customer.accountId || "Customer", chargeAmount);
               })
               .catch((error) => {
                   fireToast("❌ Payment failed: " + error.message);
               });
         }
 
+        // ⌨️ GLOBAL KEYBOARD LISTENER (HOTKEYS + SCANNER)
         window.addEventListener("keydown", function(e) {
             const currentTime = Date.now();
-            if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return; 
+            if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return; 
 
             if (!activeStaffUser) {
                 if (/[0-9]/.test(e.key)) pressLoginPin(e.key);
@@ -487,33 +586,61 @@
                 return;
             }
 
+            const isModalOpen = document.getElementById('checkout-modal').style.display === 'flex';
+
+            // Shortcut: Open Checkout (e.g. F6)
+            if (e.key === posShortcuts.checkout && !isModalOpen) {
+                e.preventDefault();
+                openCheckoutModal();
+                return;
+            }
+
+            // Shortcut: Void Cart (e.g. F4)
+            if (e.key === posShortcuts.voidCart && !isModalOpen) {
+                e.preventDefault();
+                clearCart();
+                fireToast("🗑️ Cart Cleared");
+                return;
+            }
+
+            // Shortcut: Escape closes Modal
+            if (e.key === "Escape" && isModalOpen) {
+                e.preventDefault();
+                closeCheckoutModal();
+                return;
+            }
+
             if (currentTime - lastKeyTime > 100) barcodeBuffer = "";
             lastKeyTime = currentTime;
 
-            const isModalOpen = document.getElementById('checkout-modal').style.display === 'flex';
-
             if (e.key === "Enter") {
+                e.preventDefault();
                 if (barcodeBuffer.length > 0) {
                     const scannedCode = barcodeBuffer.trim();
                     barcodeBuffer = "";
 
-                    if (isModalOpen) {
+                    if (isModalOpen && !isCheckoutCompleted) {
                         typedAccountId = scannedCode;
                         updateNumpadUI();
                         processDirectIdCharge();
-                    } else {
+                    } else if (!isModalOpen) {
                         const matchedProduct = products.find(p => p.barcode === scannedCode);
                         if (matchedProduct) addItemToCart(matchedProduct);
                     }
+                } else if (isModalOpen) {
+                    if (isCheckoutCompleted) {
+                        closeCheckoutModal();
+                    } else if (typedAccountId.length > 0) {
+                        processDirectIdCharge();
+                    }
                 }
-                e.preventDefault();
                 return;
             }
 
             if (/[0-9]/.test(e.key)) {
                 barcodeBuffer += e.key;
-                if (isModalOpen) pressNumpad(e.key);
-            } else if (isModalOpen && (e.key === "Backspace" || e.key === "Delete")) {
+                if (isModalOpen && !isCheckoutCompleted) pressNumpad(e.key);
+            } else if (isModalOpen && !isCheckoutCompleted && (e.key === "Backspace" || e.key === "Delete")) {
                 pressNumpad('DEL');
             }
         });
@@ -560,6 +687,7 @@
             updateNumpadUI();
 
             const currentAmount = totalDue;
+            const currentCartSnapshot = [...cart];
             activeInvoiceId = "INV_" + Date.now();
             document.getElementById('modal-total-display').innerText = `$${currentAmount.toFixed(2)}`;
             
@@ -573,6 +701,7 @@
                 status: "PENDING",
                 invoiceId: activeInvoiceId,
                 amount: currentAmount,
+                items: currentCartSnapshot.map(i => ({ name: i.name, icon: i.icon, price: i.price, quantity: i.quantity })),
                 createdAt: Date.now()
             }).catch(err => console.error(err));
 
@@ -611,7 +740,8 @@
             db.collection("active_checkouts").doc("current_checkout").set({
                 status: "IDLE",
                 invoiceId: null,
-                amount: 0.00
+                amount: 0.00,
+                items: []
             }).catch(err => console.error(err));
 
             typedAccountId = "";
